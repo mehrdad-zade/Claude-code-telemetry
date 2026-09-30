@@ -1,0 +1,467 @@
+:root {
+  color-scheme: light dark;
+
+  --bg: #f7f7f8;
+  --panel-bg: #ffffff;
+  --border: #e2e2e6;
+  --text: #1c1c1f;
+  --text-dim: #6b6b74;
+  --accent: #4f46e5;
+
+  --status-thinking: #a855f7;
+  --status-tool: #2563eb;
+  --status-idle: #6b7280;
+  --status-done: #16a34a;
+  --status-unknown: #9ca3af;
+
+  --edge-spawn: #6b7280;
+  --edge-message: #ec4899;
+
+  --diff-add-bg: #dcfce7;
+  --diff-add-fg: #166534;
+  --diff-remove-bg: #fee2e2;
+  --diff-remove-fg: #991b1b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17171a;
+    --panel-bg: #1f1f23;
+    --border: #313136;
+    --text: #f0f0f2;
+    --text-dim: #9a9aa2;
+
+    --diff-add-bg: #052e16;
+    --diff-add-fg: #86efac;
+    --diff-remove-bg: #450a0a;
+    --diff-remove-fg: #fca5a5;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+
+.app-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.app-subtitle {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.app-empty {
+  margin: auto;
+}
+
+.empty-hint {
+  color: var(--text-dim);
+  padding: 1rem;
+  font-size: 0.9rem;
+}
+
+/* Session list */
+
+.session-list {
+  width: 300px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  overflow: hidden;
+}
+
+.session-list-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.session-list-tabs button {
+  flex: 1;
+  padding: 0.6rem;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.session-list-tabs button.active {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  font-weight: 600;
+}
+
+.session-list-items {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.session-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-item:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.session-item.selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.session-item-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.session-item-cwd {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  word-break: break-all;
+}
+
+.session-item-meta {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.live-tag {
+  margin-left: 0.4rem;
+  font-size: 0.65rem;
+  color: var(--status-done);
+  border: 1px solid var(--status-done);
+  border-radius: 3px;
+  padding: 0 0.3rem;
+}
+
+/* Session view */
+
+.session-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.agent-graph-pane {
+  flex: 1.1;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-graph {
+  width: 100%;
+  height: 100%;
+}
+
+.event-feed-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.event-feed-header {
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+
+.event-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Agent node card */
+
+.agent-node {
+  width: 200px;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.agent-node.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.agent-node.just-spawned {
+  animation: spawnFlash 1.5s ease-out;
+}
+
+@keyframes spawnFlash {
+  0% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--status-done) 45%, transparent);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+.agent-node-role {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.agent-node-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0.15rem 0 0.35rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.pulsing {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.4);
+  }
+}
+
+/* Event blocks */
+
+.event-block {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  background: var(--panel-bg);
+  font-size: 0.82rem;
+}
+
+.event-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.event-sublabel {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin: 0.4rem 0 0.15rem;
+}
+
+.thinking-block .thinking-text {
+  font-style: italic;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+}
+
+.text-block .text-content {
+  white-space: pre-wrap;
+}
+
+.text-block.human-prompt {
+  border-left: 3px solid var(--accent);
+}
+
+.tool-name {
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: none;
+}
+
+.tool-status.ok {
+  color: var(--status-done);
+}
+
+.tool-status.error {
+  color: var(--diff-remove-fg);
+}
+
+.tool-status.pending {
+  color: var(--status-tool);
+}
+
+.tool-call-block.tool-error {
+  border-color: var(--diff-remove-fg);
+}
+
+.code-block {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border-radius: 6px;
+  padding: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.diff-hunk {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  margin: 0.3rem 0 0;
+  overflow-x: auto;
+}
+
+.diff-add {
+  background: var(--diff-add-bg);
+  color: var(--diff-add-fg);
+}
+
+.diff-remove {
+  background: var(--diff-remove-bg);
+  color: var(--diff-remove-fg);
+}
+
+.diff-meta {
+  color: var(--text-dim);
+}
+
+.spawn-block,
+.spawn-pending-block,
+.message-block,
+.lifecycle-block {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.other-events-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 0.3rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 0;
+  text-transform: none;
+}
+
+/* Replay controls */
+
+.replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  font-size: 0.8rem;
+}
+
+.replay-controls input[type="range"] {
+  flex: 1;
+}
+
+.speed-picker {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.speed-picker button {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.speed-picker button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.replay-position {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}

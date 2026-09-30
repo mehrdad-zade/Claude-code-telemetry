@@ -1,0 +1,19 @@
+{
+  "name": "agent-tel",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm run dev -w @agent-tel/server\" \"npm run dev -w @agent-tel/web\"",
+    "build": "npm run build -w @agent-tel/web",
+    "start": "npm run build && tsx packages/server/src/index.ts",
+    "test": "npm run test -w @agent-tel/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
