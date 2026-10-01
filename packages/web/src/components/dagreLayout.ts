@@ -1,8 +1,8 @@
 import dagre from "dagre";
 import type { Edge, Node } from "reactflow";
 
-const NODE_WIDTH = 260;
-const NODE_HEIGHT = 150;
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 104;
 
 /** Computes a simple top-down layout for the (mostly-tree-shaped) agent
  * graph. Re-run on every render with the current node/edge set — cheap at

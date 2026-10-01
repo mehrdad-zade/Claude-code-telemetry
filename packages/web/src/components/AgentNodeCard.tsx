@@ -2,7 +2,7 @@ import { Handle, Position, type NodeProps } from "reactflow";
 import type { AgentNode } from "@agent-tel/shared";
 import { StatusBadge } from "./StatusBadge.js";
 import { agentLabel } from "../lib/agentColor.js";
-import { STEP_COLOR, STEP_GLYPH, type AgentStats } from "../lib/agentStats.js";
+import type { AgentStats } from "../lib/agentStats.js";
 
 export interface AgentNodeCardData {
   agent: AgentNode;
@@ -13,19 +13,19 @@ export interface AgentNodeCardData {
   stats: AgentStats;
 }
 
-const MAX_TOOL_BADGES = 3;
-
+/** Deliberately minimal — this is a navigation box, not a dashboard. What
+ * the agent actually did lives in the JourneyFlow timeline and the detail
+ * panel once you click in; cramming tool badges/icons in here just made the
+ * box noisy and non-interactive. */
 export function AgentNodeCard({ data }: NodeProps<AgentNodeCardData>) {
   const { agent, selected, justSpawned, onSelect, color, stats } = data;
-  const topTools = stats.toolCounts.slice(0, MAX_TOOL_BADGES);
-  const moreTools = stats.toolCounts.length - topTools.length;
 
   return (
     <div
       className={`agent-node${selected ? " selected" : ""}${justSpawned ? " just-spawned" : ""}`}
       style={{ borderLeftColor: color }}
       onClick={() => onSelect(agent.agentId)}
-      title="Click for full detail"
+      title="Click to see this agent's journey"
     >
       <Handle type="target" position={Position.Top} />
       <div className="agent-node-role">
@@ -34,33 +34,13 @@ export function AgentNodeCard({ data }: NodeProps<AgentNodeCardData>) {
       </div>
       <div className="agent-node-title">{agentLabel(agent)}</div>
       <StatusBadge status={agent.status} />
-
-      {topTools.length > 0 && (
-        <div className="agent-node-tools">
-          {topTools.map((t) => (
-            <span className="tool-mini-badge" key={t.name}>
-              {t.name}×{t.count}
-            </span>
-          ))}
-          {moreTools > 0 && <span className="tool-mini-badge tool-mini-badge-more">+{moreTools}</span>}
+      {stats.totalToolCalls > 0 && (
+        <div className="agent-node-gist">
+          {stats.totalToolCalls} tool call{stats.totalToolCalls === 1 ? "" : "s"}
+          {stats.fileEditCount > 0 ? ` · ${stats.fileEditCount} edited` : ""}
+          {stats.spawnCount > 0 ? ` · ${stats.spawnCount} spawned` : ""}
         </div>
       )}
-
-      {stats.steps.length > 0 && (
-        <div className="agent-node-sparkline" title={`${stats.totalToolCalls} tool calls · ${stats.fileEditCount} files edited`}>
-          {stats.steps.map((step) => (
-            <span
-              key={step.id}
-              className={`spark-dot${step.isError ? " spark-error" : ""}`}
-              style={{ color: STEP_COLOR[step.kind] }}
-              title={step.kind === "tool_call" ? step.toolName : step.kind.replace("_", " ")}
-            >
-              {STEP_GLYPH[step.kind]}
-            </span>
-          ))}
-        </div>
-      )}
-
       <Handle type="source" position={Position.Bottom} />
     </div>
   );

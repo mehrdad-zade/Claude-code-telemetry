@@ -1,12 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { AgentNode, NormalizedEvent } from "@agent-tel/shared";
 import type { SessionData } from "../state/store.js";
 import { assignAgentColors } from "../lib/agentColor.js";
 import { summarizeAgentEvents } from "../lib/agentStats.js";
+import { buildJourney, type JourneyStep } from "../lib/journey.js";
 import { AgentDetailPanel } from "./AgentDetailPanel.js";
 import { AgentGraph } from "./AgentGraph.js";
 import { AgentLegend } from "./AgentLegend.js";
 import { EventFeed } from "./EventFeed.js";
+import { JourneyFlow } from "./JourneyFlow.js";
 import { ReplayControls } from "./ReplayControls.js";
 
 function visibleAgents(allAgents: AgentNode[], events: NormalizedEvent[]): AgentNode[] {
@@ -65,6 +67,19 @@ export function SessionView({
   const colors = useMemo(() => assignAgentColors(effectiveAgents), [effectiveAgents]);
   const activeAgent = effectiveAgents.find((a) => a.agentId === activeAgentId);
   const activeStats = useMemo(() => summarizeAgentEvents(feedEvents), [feedEvents]);
+  const journey = useMemo(() => buildJourney(feedEvents), [feedEvents]);
+
+  const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
+
+  function handleStepClick(step: JourneyStep) {
+    if (step.targetAgentId && effectiveAgents.some((a) => a.agentId === step.targetAgentId)) {
+      // A handoff step (spawn/message) — jump straight to the other side of
+      // it rather than just highlighting it in the current feed.
+      onSelectAgent(step.targetAgentId);
+      return;
+    }
+    setFocus((prev) => ({ id: step.id, nonce: (prev?.nonce ?? 0) + 1 }));
+  }
 
   return (
     <div className="session-view">
@@ -76,6 +91,11 @@ export function SessionView({
           onSelect={onSelectAgent}
           colors={colors}
         />
+      </div>
+
+      <div className="journey-pane">
+        <div className="journey-pane-label">Journey · click any step for detail</div>
+        <JourneyFlow steps={journey.steps} turnMarkers={journey.turnMarkers} onStepClick={handleStepClick} />
       </div>
 
       {session.mode === "replay" && (
@@ -96,7 +116,7 @@ export function SessionView({
         ) : (
           <div className="event-feed-header">{activeAgentId}</div>
         )}
-        <EventFeed events={feedEvents} />
+        <EventFeed events={feedEvents} focusEventId={focus?.id} focusNonce={focus?.nonce} />
       </div>
     </div>
   );

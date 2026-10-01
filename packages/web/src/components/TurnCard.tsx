@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from "react";
+import { useMemo } from "react";
 import dayjs from "dayjs";
 import type { NormalizedEvent, ToolResultEvent } from "@agent-tel/shared";
 import type { Turn } from "../lib/turns.js";
@@ -12,6 +12,8 @@ export function TurnCard({
   onToggle,
   results,
   live,
+  cardRef,
+  highlightEventId,
 }: {
   turn: Turn;
   index: number;
@@ -19,6 +21,8 @@ export function TurnCard({
   onToggle: () => void;
   results: Map<string, ToolResultEvent>;
   live: boolean;
+  cardRef?: (el: HTMLDivElement | null) => void;
+  highlightEventId?: string | null;
 }) {
   const summary = useMemo(() => summarizeTurn(turn.events), [turn.events]);
   const visibleEvents = useMemo(
@@ -28,7 +32,7 @@ export function TurnCard({
   const otherCount = turn.events.length - visibleEvents.filter((e) => e.kind !== "tool_result").length;
 
   return (
-    <div className={`turn-card${live ? " turn-live" : ""}`}>
+    <div className={`turn-card${live ? " turn-live" : ""}`} ref={cardRef}>
       <button className="turn-header" onClick={onToggle}>
         <span className={`turn-chevron${expanded ? " open" : ""}`}>▸</span>
         <span className="turn-index">#{index + 1}</span>
@@ -65,9 +69,15 @@ export function TurnCard({
 
       {expanded && (
         <div className="turn-body">
-          {turn.prompt && renderEvent(turn.prompt, results)}
+          {turn.prompt && (
+            <div className={turn.prompt.id === highlightEventId ? "event-highlight" : undefined}>
+              {renderEvent(turn.prompt, results)}
+            </div>
+          )}
           {visibleEvents.map((event) => (
-            <Fragment key={event.id}>{renderEvent(event, results)}</Fragment>
+            <div key={event.id} className={event.id === highlightEventId ? "event-highlight" : undefined}>
+              {renderEvent(event, results)}
+            </div>
           ))}
           {otherCount > 0 && <div className="other-events-hint">{otherCount} other background event(s) hidden</div>}
         </div>

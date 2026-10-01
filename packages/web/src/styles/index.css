@@ -195,7 +195,7 @@ body {
 }
 
 .agent-graph-pane {
-  flex: 1.1;
+  flex: 0.8;
   min-height: 0;
   border-bottom: 1px solid var(--border);
 }
@@ -205,8 +205,108 @@ body {
   height: 100%;
 }
 
-.event-feed-pane {
+/* Journey timeline — the primary "what actually happened, in order" view */
+
+.journey-pane {
+  flex-shrink: 0;
+  height: 118px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.journey-pane-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 0.4rem 1rem 0;
+  flex-shrink: 0;
+}
+
+.journey-flow {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.4rem 1rem;
+}
+
+.journey-flow.journey-empty {
+  overflow: hidden;
+}
+
+.journey-turn-marker {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  height: 100%;
+  padding: 0 0.6rem;
+  border-left: 2px dashed var(--border);
+  margin-right: 0.1rem;
+}
+
+.journey-turn-index {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.journey-turn-label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journey-arrow {
+  flex-shrink: 0;
+  color: var(--border);
+  font-size: 0.8rem;
+}
+
+.journey-step {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--step-color) 55%, var(--border));
+  background: color-mix(in srgb, var(--step-color) 10%, var(--panel-bg));
+  color: var(--text);
+  font-size: 0.74rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.journey-step:hover {
+  background: color-mix(in srgb, var(--step-color) 20%, var(--panel-bg));
+}
+
+.journey-step-error {
+  border-color: var(--diff-remove-fg);
+  background: color-mix(in srgb, var(--diff-remove-fg) 15%, var(--panel-bg));
+}
+
+.journey-step-icon {
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.journey-step-label {
+  font-weight: 500;
+}
+
+.event-feed-pane {
+  flex: 1.2;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -291,6 +391,12 @@ body {
 .event-feed {
   flex: 1;
   overflow-y: auto;
+  /* Without this, the browser's native scroll-anchoring "helpfully"
+     compensates scrollTop whenever a turn ABOVE the viewport expands (e.g.
+     a journey-step click force-opening an earlier turn with hundreds of
+     blocks) — it fights our own explicit scrollIntoView and effectively
+     keeps snapping back toward wherever we already were. */
+  overflow-anchor: none;
   padding: 0.75rem 1rem;
   display: flex;
   flex-direction: column;
@@ -300,7 +406,7 @@ body {
 /* Agent node card */
 
 .agent-node {
-  width: 260px;
+  width: 220px;
   padding: 0.6rem 0.8rem;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -310,15 +416,18 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
-.agent-node-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
+.agent-node-gist {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  padding-top: 0.2rem;
+  border-top: 1px dashed var(--border);
 }
 
+/* Shared small badge style — still used by the (roomy, non-cluttered)
+   agent detail panel's full tool-usage breakdown. */
 .tool-mini-badge {
   font-size: 0.65rem;
   padding: 0.05rem 0.35rem;
@@ -326,32 +435,6 @@ body {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text-dim);
   white-space: nowrap;
-}
-
-.tool-mini-badge-more {
-  background: none;
-  border: 1px dashed var(--border);
-}
-
-.agent-node-sparkline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1px;
-  font-size: 0.72rem;
-  line-height: 1;
-  padding-top: 0.1rem;
-  border-top: 1px dashed var(--border);
-}
-
-.spark-dot {
-  display: inline-block;
-  opacity: 0.9;
-}
-
-.spark-dot.spark-error {
-  filter: drop-shadow(0 0 0 var(--diff-remove-fg));
-  outline: 1px solid var(--diff-remove-fg);
-  border-radius: 3px;
 }
 
 .agent-color-dot {
@@ -371,6 +454,20 @@ body {
 
 .agent-node.just-spawned {
   animation: spawnFlash 1.5s ease-out;
+}
+
+.event-highlight {
+  animation: focusFlash 2s ease-out;
+  border-radius: 8px;
+}
+
+@keyframes focusFlash {
+  0% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
 
 @keyframes spawnFlash {
