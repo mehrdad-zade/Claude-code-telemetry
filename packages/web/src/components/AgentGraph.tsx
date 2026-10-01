@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, { Background, type Edge, type Node, type NodeTypes } from "reactflow";
 import "reactflow/dist/style.css";
 import type { AgentNode, NormalizedEvent } from "@agent-tel/shared";
+import { summarizeAgentEvents } from "../lib/agentStats.js";
 import { AgentNodeCard, type AgentNodeCardData } from "./AgentNodeCard.js";
 import { layoutWithDagre } from "./dagreLayout.js";
 
@@ -42,6 +43,19 @@ export function AgentGraph({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events.length]);
 
+  const eventsByAgent = useMemo(() => {
+    const map = new Map<string, NormalizedEvent[]>();
+    for (const event of events) {
+      let list = map.get(event.agentId);
+      if (!list) {
+        list = [];
+        map.set(event.agentId, list);
+      }
+      list.push(event);
+    }
+    return map;
+  }, [events]);
+
   const { nodes, edges } = useMemo(() => {
     const nodes: Node<AgentNodeCardData>[] = agents.map((agent) => ({
       id: agent.agentId,
@@ -53,43 +67,61 @@ export function AgentGraph({
         justSpawned: flashedNodes.has(agent.agentId),
         onSelect,
         color: colors.get(agent.agentId) ?? "var(--border)",
+        stats: summarizeAgentEvents(eventsByAgent.get(agent.agentId) ?? []),
       },
     }));
 
+    const agentById = new Map(agents.map((a) => [a.agentId, a]));
     const spawnEdges: Edge[] = agents
       .filter((a): a is AgentNode & { parentAgentId: string } => !!a.parentAgentId)
-      .map((a) => ({
-        id: `spawn-${a.agentId}`,
-        source: a.parentAgentId,
-        target: a.agentId,
-        type: "smoothstep",
-      }));
+      .map((a) => {
+        const justSpawned = flashedNodes.has(a.agentId);
+        const label = a.subagentType ?? a.description ? `🧩 ${a.subagentType ?? ""}${a.description ? ` · ${truncate(a.description, 36)}` : ""}` : "🧩 spawned";
+        return {
+          id: `spawn-${a.agentId}`,
+          source: a.parentAgentId,
+          target: a.agentId,
+          type: "smoothstep",
+          label,
+          labelBgPadding: [6, 3] as [number, number],
+          labelBgStyle: { fill: "var(--panel-bg)", fillOpacity: 0.9 },
+          labelStyle: { fill: "var(--text-dim)", fontSize: 11 },
+          style: { stroke: justSpawned ? "var(--status-done)" : "var(--edge-spawn)", strokeWidth: justSpawned ? 2.5 : 1.5 },
+        };
+      });
 
-    const messagePairs = new Map<string, { from: string; to: string; preview: string }>();
+    // Keep every agent_message pair as a persistent edge labeled with the
+    // most recent handoff's preview — this is the "what was done" the
+    // handoff ask needs, not just a flash that disappears.
+    const messagePairs = new Map<string, { from: string; to: string; preview: string; count: number }>();
     for (const event of events) {
       if (event.kind !== "agent_message") continue;
-      messagePairs.set(`${event.fromAgentId}->${event.toAgentId}`, {
-        from: event.fromAgentId,
-        to: event.toAgentId,
-        preview: event.preview,
-      });
+      const key = `${event.fromAgentId}->${event.toAgentId}`;
+      const existing = messagePairs.get(key);
+      messagePairs.set(key, { from: event.fromAgentId, to: event.toAgentId, preview: event.preview, count: (existing?.count ?? 0) + 1 });
     }
-    const messageEdges: Edge[] = [...messagePairs.entries()].map(([key, m]) => {
-      const flashKey = `msg-${m.from}-${m.to}`;
-      return {
-        id: `msg-${key}`,
-        source: m.from,
-        target: m.to,
-        type: "straight",
-        animated: flashedEdges.has(flashKey),
-        label: flashedEdges.has(flashKey) ? m.preview.slice(0, 40) : undefined,
-        style: { stroke: "var(--edge-message)", strokeDasharray: "4 3" },
-      };
-    });
+    const messageEdges: Edge[] = [...messagePairs.entries()]
+      .filter(([, m]) => agentById.has(m.from) && agentById.has(m.to))
+      .map(([key, m]) => {
+        const flashKey = `msg-${m.from}-${m.to}`;
+        const justSent = flashedEdges.has(flashKey);
+        return {
+          id: `msg-${key}`,
+          source: m.from,
+          target: m.to,
+          type: "straight",
+          animated: justSent,
+          label: `✉️ ${truncate(m.preview, 42)}${m.count > 1 ? ` (+${m.count - 1} more)` : ""}`,
+          labelBgPadding: [6, 3] as [number, number],
+          labelBgStyle: { fill: "var(--panel-bg)", fillOpacity: 0.9 },
+          labelStyle: { fill: "var(--edge-message)", fontSize: 11, fontWeight: justSent ? 700 : 400 },
+          style: { stroke: "var(--edge-message)", strokeWidth: justSent ? 2.5 : 1.5, strokeDasharray: "4 3" },
+        };
+      });
 
     const laidOut = layoutWithDagre(nodes, spawnEdges);
     return { nodes: laidOut, edges: [...spawnEdges, ...messageEdges] };
-  }, [agents, events, selectedAgentId, flashedNodes, flashedEdges, onSelect, colors]);
+  }, [agents, events, eventsByAgent, selectedAgentId, flashedNodes, flashedEdges, onSelect, colors]);
 
   return (
     <div className="agent-graph">
@@ -98,6 +130,11 @@ export function AgentGraph({
       </ReactFlow>
     </div>
   );
+}
+
+function truncate(text: string, max: number): string {
+  const singleLine = text.replace(/\s+/g, " ").trim();
+  return singleLine.length > max ? `${singleLine.slice(0, max)}…` : singleLine;
 }
 
 function flash(setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string): void {

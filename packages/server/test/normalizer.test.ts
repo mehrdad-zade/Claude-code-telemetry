@@ -28,6 +28,23 @@ describe("Normalizer", () => {
     expect(events[2]).toMatchObject({ kind: "tool_call", name: "Bash", toolUseId: "toolu_1" });
   });
 
+  it("still emits a thinking event when the thinking text is empty (redacted summary)", () => {
+    // Some reasoning-effort/model configurations write a thinking block with
+    // no readable summary, just an empty string + a verification signature.
+    // Dropping it would silently undercount the agent's real reasoning
+    // steps in the process view.
+    const normalizer = new Normalizer();
+    const raw = {
+      type: "assistant",
+      timestamp: "t",
+      message: { content: [{ type: "thinking", thinking: "", signature: "abc" }] },
+    };
+
+    const events = normalizer.normalizeLine(raw, ctx());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: "thinking", text: "" });
+  });
+
   it("marks a human-authored user line as isHumanPrompt", () => {
     const normalizer = new Normalizer();
     const raw = {

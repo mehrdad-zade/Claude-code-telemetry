@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import type { AgentNode, NormalizedEvent } from "@agent-tel/shared";
 import type { SessionData } from "../state/store.js";
-import { agentLabel, assignAgentColors } from "../lib/agentColor.js";
+import { assignAgentColors } from "../lib/agentColor.js";
+import { summarizeAgentEvents } from "../lib/agentStats.js";
+import { AgentDetailPanel } from "./AgentDetailPanel.js";
 import { AgentGraph } from "./AgentGraph.js";
 import { AgentLegend } from "./AgentLegend.js";
 import { EventFeed } from "./EventFeed.js";
@@ -62,6 +64,7 @@ export function SessionView({
   // (not hashed) so two agents never coincidentally land on the same color.
   const colors = useMemo(() => assignAgentColors(effectiveAgents), [effectiveAgents]);
   const activeAgent = effectiveAgents.find((a) => a.agentId === activeAgentId);
+  const activeStats = useMemo(() => summarizeAgentEvents(feedEvents), [feedEvents]);
 
   return (
     <div className="session-view">
@@ -88,16 +91,11 @@ export function SessionView({
       <AgentLegend agents={effectiveAgents} activeAgentId={activeAgentId} onSelect={onSelectAgent} colors={colors} />
 
       <div className="event-feed-pane">
-        <div className="event-feed-header">
-          {activeAgent ? (
-            <>
-              <span className="agent-color-dot" style={{ background: colors.get(activeAgent.agentId) }} />
-              {agentLabel(activeAgent)}
-            </>
-          ) : (
-            activeAgentId
-          )}
-        </div>
+        {activeAgent ? (
+          <AgentDetailPanel agent={activeAgent} stats={activeStats} color={colors.get(activeAgent.agentId) ?? "var(--border)"} />
+        ) : (
+          <div className="event-feed-header">{activeAgentId}</div>
+        )}
         <EventFeed events={feedEvents} />
       </div>
     </div>

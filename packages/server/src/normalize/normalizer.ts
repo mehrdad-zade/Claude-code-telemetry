@@ -147,8 +147,14 @@ export class Normalizer {
 
       switch (block.type) {
         case "thinking": {
+          // Always emit this — some reasoning-effort/model configurations
+          // write a thinking block with an empty `thinking` string (just a
+          // verification signature, no readable summary). Dropping those
+          // would silently undercount how much an agent actually thought,
+          // which defeats the point of the process view. The UI shows a
+          // placeholder for the empty-text case instead of a blank block.
           const text = String(block.thinking ?? "");
-          if (text) events.push({ ...base, kind: "thinking", text });
+          events.push({ ...base, kind: "thinking", text });
           break;
         }
         case "text": {
