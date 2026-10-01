@@ -1,15 +1,14 @@
 import { useMemo, useState } from "react";
 import type { AgentNode, NormalizedEvent } from "@agent-tel/shared";
 import type { SessionData } from "../state/store.js";
-import { assignAgentColors } from "../lib/agentColor.js";
-import { summarizeAgentEvents } from "../lib/agentStats.js";
-import { buildJourney, type JourneyStep } from "../lib/journey.js";
-import { AgentDetailPanel } from "./AgentDetailPanel.js";
-import { AgentGraph } from "./AgentGraph.js";
-import { AgentLegend } from "./AgentLegend.js";
+import { agentLabel, assignAgentColors } from "../lib/agentColor.js";
+import { buildTurnRows } from "../lib/turnGroups.js";
+import type { JourneyStep } from "../lib/journey.js";
 import { EventFeed } from "./EventFeed.js";
 import { JourneyFlow } from "./JourneyFlow.js";
 import { ReplayControls } from "./ReplayControls.js";
+import { StatusBadge } from "./StatusBadge.js";
+import { VisualizationRows } from "./VisualizationRows.js";
 
 function visibleAgents(allAgents: AgentNode[], events: NormalizedEvent[]): AgentNode[] {
   const appeared = new Set(allAgents.filter((a) => a.role === "main").map((a) => a.agentId));
@@ -61,41 +60,60 @@ export function SessionView({
     [effectiveEvents, activeAgentId]
   );
 
-  // Computed once per agent set so every agent keeps a stable, DISTINCT color
-  // across the graph, the legend, and the feed header — position-based
-  // (not hashed) so two agents never coincidentally land on the same color.
+  // Still computed (position-based, so two agents never collide) purely for
+  // the small color dot in the header — the legend/graph that used to show
+  // every agent at once is gone, so this is now just this agent's identity.
   const colors = useMemo(() => assignAgentColors(effectiveAgents), [effectiveAgents]);
   const activeAgent = effectiveAgents.find((a) => a.agentId === activeAgentId);
-  const activeStats = useMemo(() => summarizeAgentEvents(feedEvents), [feedEvents]);
-  const journey = useMemo(() => buildJourney(feedEvents), [feedEvents]);
+  const parentAgent = activeAgent?.parentAgentId
+    ? effectiveAgents.find((a) => a.agentId === activeAgent.parentAgentId)
+    : undefined;
+
+  const turnRows = useMemo(() => buildTurnRows(feedEvents), [feedEvents]);
 
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
 
+  function focusEvent(eventId: string) {
+    setFocus((prev) => ({ id: eventId, nonce: (prev?.nonce ?? 0) + 1 }));
+  }
+
+  function jumpToAgent(agentId: string) {
+    if (effectiveAgents.some((a) => a.agentId === agentId)) onSelectAgent(agentId);
+  }
+
   function handleStepClick(step: JourneyStep) {
-    if (step.targetAgentId && effectiveAgents.some((a) => a.agentId === step.targetAgentId)) {
-      // A handoff step (spawn/message) — jump straight to the other side of
-      // it rather than just highlighting it in the current feed.
-      onSelectAgent(step.targetAgentId);
+    if (step.targetAgentId) {
+      jumpToAgent(step.targetAgentId);
       return;
     }
-    setFocus((prev) => ({ id: step.id, nonce: (prev?.nonce ?? 0) + 1 }));
+    focusEvent(step.id);
   }
 
   return (
     <div className="session-view">
-      <div className="agent-graph-pane">
-        <AgentGraph
-          agents={effectiveAgents}
-          events={effectiveEvents}
-          selectedAgentId={activeAgentId}
-          onSelect={onSelectAgent}
-          colors={colors}
-        />
+      <div className="agent-context-header">
+        {parentAgent && (
+          <button className="back-link" onClick={() => onSelectAgent(parentAgent.agentId)}>
+            ← {agentLabel(parentAgent)}
+          </button>
+        )}
+        {activeAgent && (
+          <>
+            <span className="agent-color-dot" style={{ background: colors.get(activeAgent.agentId) }} />
+            <span className="agent-context-name">{agentLabel(activeAgent)}</span>
+            <StatusBadge status={activeAgent.status} />
+          </>
+        )}
+      </div>
+
+      <div className="visualization-pane">
+        <div className="section-label">Visualization</div>
+        <VisualizationRows rows={turnRows} onFocusEvent={focusEvent} onJumpToAgent={jumpToAgent} />
       </div>
 
       <div className="journey-pane">
-        <div className="journey-pane-label">Journey · click any step for detail</div>
-        <JourneyFlow steps={journey.steps} turnMarkers={journey.turnMarkers} onStepClick={handleStepClick} />
+        <div className="section-label">Journey · click any step for detail</div>
+        <JourneyFlow rows={turnRows} onStepClick={handleStepClick} />
       </div>
 
       {session.mode === "replay" && (
@@ -108,14 +126,7 @@ export function SessionView({
         />
       )}
 
-      <AgentLegend agents={effectiveAgents} activeAgentId={activeAgentId} onSelect={onSelectAgent} colors={colors} />
-
       <div className="event-feed-pane">
-        {activeAgent ? (
-          <AgentDetailPanel agent={activeAgent} stats={activeStats} color={colors.get(activeAgent.agentId) ?? "var(--border)"} />
-        ) : (
-          <div className="event-feed-header">{activeAgentId}</div>
-        )}
         <EventFeed events={feedEvents} focusEventId={focus?.id} focusNonce={focus?.nonce} />
       </div>
     </div>

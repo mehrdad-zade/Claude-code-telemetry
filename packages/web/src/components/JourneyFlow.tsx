@@ -1,77 +1,61 @@
 import { Fragment, useEffect, useRef } from "react";
-import type { JourneyStep, JourneyTurnMarker } from "../lib/journey.js";
+import dayjs from "dayjs";
+import type { TurnRow } from "../lib/turnGroups.js";
+import type { JourneyStep } from "../lib/journey.js";
 import { STEP_COLOR, STEP_GLYPH } from "../lib/journey.js";
 
-/** The main "what actually happened, in order" visualization: every
- * meaningful step an agent took, rendered as a connected horizontal
- * timeline of clickable chips, grouped into turns by a labeled divider.
- * Replaces the old cramped icon-strip-inside-a-box approach — this is the
- * primary graphical journey view, not a decoration on the agent box. */
+/** The granular, step-by-step journey: one row per instruction/response
+ * cycle (same rows as the Visualization section, one level more detailed),
+ * each prefixed with the date/time it started, with every individual step
+ * (thinking, each tool call, file edit, hand-off, reply) as its own
+ * clickable chip in order. A new instruction always starts a new row. */
 export function JourneyFlow({
-  steps,
-  turnMarkers,
+  rows,
   onStepClick,
 }: {
-  steps: JourneyStep[];
-  turnMarkers: JourneyTurnMarker[];
+  rows: TurnRow[];
   onStepClick: (step: JourneyStep) => void;
 }) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const lastRowRef = useRef<HTMLDivElement | null>(null);
 
-  // Default view is "where things are right now" — jump to the latest step
-  // whenever new ones arrive, same as the feed's auto-scroll.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", inline: "end", block: "nearest" });
-  }, [steps.length]);
+    lastRowRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [rows.length]);
 
-  // Let a plain vertical wheel scroll this horizontally too — much more
-  // discoverable than requiring shift+scroll for a sideways timeline.
-  function handleWheel(e: React.WheelEvent<HTMLDivElement>) {
-    if (e.deltaY === 0) return;
-    e.currentTarget.scrollLeft += e.deltaY;
-  }
-
-  if (steps.length === 0) {
+  if (rows.length === 0) {
     return (
-      <div className="journey-flow journey-empty">
+      <div className="journey-rows">
         <div className="empty-hint">No activity yet.</div>
       </div>
     );
   }
 
-  const markerByTurn = new Map(turnMarkers.map((m) => [m.turnIndex, m]));
-  let lastTurn = -1;
-
   return (
-    <div className="journey-flow" ref={scrollRef} onWheel={handleWheel}>
-      {steps.map((step, i) => {
-        const marker = step.turnIndex !== lastTurn ? markerByTurn.get(step.turnIndex) : undefined;
-        const needsArrow = step.turnIndex === lastTurn;
-        lastTurn = step.turnIndex;
-
-        return (
-          <Fragment key={step.id}>
-            {marker && (
-              <div className="journey-turn-marker">
-                <span className="journey-turn-index">#{marker.turnIndex + 1}</span>
-                <span className="journey-turn-label">{marker.label}</span>
-              </div>
-            )}
-            {needsArrow && <span className="journey-arrow">→</span>}
-            <button
-              className={`journey-step journey-step-${step.kind}${step.isError ? " journey-step-error" : ""}`}
-              style={{ ["--step-color" as string]: STEP_COLOR[step.kind] }}
-              onClick={() => onStepClick(step)}
-              title={step.detail ?? step.label}
-            >
-              <span className="journey-step-icon">{STEP_GLYPH[step.kind]}</span>
-              <span className="journey-step-label">{truncateLabel(step.label)}</span>
-            </button>
-          </Fragment>
-        );
-      })}
-      <div ref={endRef} />
+    <div className="journey-rows">
+      {rows.map((row, i) => (
+        <div className="journey-row" key={row.key} ref={i === rows.length - 1 ? lastRowRef : undefined}>
+          <div className="journey-row-time" title={row.timestamp}>
+            {row.timestamp ? dayjs(row.timestamp).format("MMM D, h:mm:ss A") : ""}
+          </div>
+          <div className="journey-row-steps">
+            {row.steps.length === 0 && <span className="viz-box-empty">—</span>}
+            {row.steps.map((step, j) => (
+              <Fragment key={step.id}>
+                {j > 0 && <span className="journey-arrow">→</span>}
+                <button
+                  className={`journey-step journey-step-${step.kind}${step.isError ? " journey-step-error" : ""}`}
+                  style={{ ["--step-color" as string]: STEP_COLOR[step.kind] }}
+                  onClick={() => onStepClick(step)}
+                  title={step.detail ?? step.label}
+                >
+                  <span className="journey-step-icon">{STEP_GLYPH[step.kind]}</span>
+                  <span className="journey-step-label">{truncateLabel(step.label)}</span>
+                </button>
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

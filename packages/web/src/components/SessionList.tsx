@@ -20,17 +20,31 @@ export function SessionList({
   onSelectLive: (session: LiveSession) => void;
   onSelectReplay: (entry: ProjectHistoryEntry) => void;
 }) {
-  const [tab, setTab] = useState<"live" | "scrollback">("live");
+  const [tab, setTab] = useState<"live" | "history">("live");
+  const [collapsed, setCollapsed] = useState(false);
   const liveIds = new Set(roster.map((s) => s.sessionId));
+
+  if (collapsed) {
+    return (
+      <div className="session-list session-list-collapsed">
+        <button className="sidebar-toggle" onClick={() => setCollapsed(false)} title="Expand">
+          »
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="session-list">
       <div className="session-list-tabs">
         <button className={tab === "live" ? "active" : ""} onClick={() => setTab("live")}>
-          Live ({roster.length})
+          Live Trace ({roster.length})
         </button>
-        <button className={tab === "scrollback" ? "active" : ""} onClick={() => setTab("scrollback")}>
-          Scrollback
+        <button className={tab === "history" ? "active" : ""} onClick={() => setTab("history")}>
+          History Trace
+        </button>
+        <button className="sidebar-toggle" onClick={() => setCollapsed(true)} title="Collapse">
+          «
         </button>
       </div>
 
@@ -51,7 +65,7 @@ export function SessionList({
         </div>
       )}
 
-      {tab === "scrollback" && (
+      {tab === "history" && (
         <div className="session-list-items">
           {projects.length === 0 && <div className="empty-hint">No recorded sessions found yet.</div>}
           {projects.map((entry) => (
