@@ -13,11 +13,13 @@ export function AgentGraph({
   events,
   selectedAgentId,
   onSelect,
+  colors,
 }: {
   agents: AgentNode[];
   events: NormalizedEvent[];
   selectedAgentId: string | null;
   onSelect: (agentId: string) => void;
+  colors: Map<string, string>;
 }) {
   const [flashedNodes, setFlashedNodes] = useState<Set<string>>(new Set());
   const [flashedEdges, setFlashedEdges] = useState<Set<string>>(new Set());
@@ -50,6 +52,7 @@ export function AgentGraph({
         selected: agent.agentId === selectedAgentId,
         justSpawned: flashedNodes.has(agent.agentId),
         onSelect,
+        color: colors.get(agent.agentId) ?? "var(--border)",
       },
     }));
 
@@ -86,7 +89,7 @@ export function AgentGraph({
 
     const laidOut = layoutWithDagre(nodes, spawnEdges);
     return { nodes: laidOut, edges: [...spawnEdges, ...messageEdges] };
-  }, [agents, events, selectedAgentId, flashedNodes, flashedEdges, onSelect]);
+  }, [agents, events, selectedAgentId, flashedNodes, flashedEdges, onSelect, colors]);
 
   return (
     <div className="agent-graph">

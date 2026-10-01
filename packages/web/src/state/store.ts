@@ -9,6 +9,23 @@ import type {
 
 const MAX_EVENTS_PER_SESSION = 3000;
 
+// Tracks which event ids have already been applied per session, purely to
+// guard against a duplicate delivery (e.g. a reconnect briefly leaving two
+// subscriptions live) pushing the same event twice — which would otherwise
+// surface as a React "duplicate key" crash in the feed. Kept outside the
+// zustand state itself since it's bookkeeping, not UI state; reset whenever
+// a fresh snapshot replaces a session's events wholesale.
+const seenEventIds = new Map<string, Set<string>>();
+
+function dedupeById(events: NormalizedEvent[]): NormalizedEvent[] {
+  const seen = new Set<string>();
+  return events.filter((e) => {
+    if (seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
+  });
+}
+
 export interface SessionData {
   mode: "live" | "replay";
   ended: boolean;
@@ -96,6 +113,10 @@ export const useStore = create<StoreState>((set, get) => ({
       case "snapshot": {
         const agentMap: Record<string, AgentNode> = {};
         for (const a of msg.agents) agentMap[a.agentId] = a;
+        const events = dedupeById(msg.events);
+        // A snapshot is authoritative and wholesale-replaces this session's
+        // events, so the dedup tracking for it starts fresh too.
+        seenEventIds.set(msg.sessionId, new Set(events.map((e) => e.id)));
         set((state) => {
           const existing = state.sessions[msg.sessionId];
           return {
@@ -105,8 +126,8 @@ export const useStore = create<StoreState>((set, get) => ({
                 mode: "live",
                 ended: existing?.ended ?? false,
                 agents: agentMap,
-                events: msg.events,
-                replayCursor: msg.events.length,
+                events,
+                replayCursor: events.length,
                 replayPlaying: false,
               },
             },
@@ -134,6 +155,14 @@ export const useStore = create<StoreState>((set, get) => ({
 
       case "event": {
         const event = msg.event;
+        let seen = seenEventIds.get(event.sessionId);
+        if (!seen) {
+          seen = new Set();
+          seenEventIds.set(event.sessionId, seen);
+        }
+        if (seen.has(event.id)) return; // duplicate delivery — never double-apply
+        seen.add(event.id);
+
         set((state) => {
           const session = state.sessions[event.sessionId] ?? emptySession("live");
           const events = [...session.events, event];

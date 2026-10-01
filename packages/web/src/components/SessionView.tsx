@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import type { AgentNode, NormalizedEvent } from "@agent-tel/shared";
 import type { SessionData } from "../state/store.js";
+import { agentLabel, assignAgentColors } from "../lib/agentColor.js";
 import { AgentGraph } from "./AgentGraph.js";
+import { AgentLegend } from "./AgentLegend.js";
 import { EventFeed } from "./EventFeed.js";
 import { ReplayControls } from "./ReplayControls.js";
 
@@ -55,6 +57,12 @@ export function SessionView({
     [effectiveEvents, activeAgentId]
   );
 
+  // Computed once per agent set so every agent keeps a stable, DISTINCT color
+  // across the graph, the legend, and the feed header — position-based
+  // (not hashed) so two agents never coincidentally land on the same color.
+  const colors = useMemo(() => assignAgentColors(effectiveAgents), [effectiveAgents]);
+  const activeAgent = effectiveAgents.find((a) => a.agentId === activeAgentId);
+
   return (
     <div className="session-view">
       <div className="agent-graph-pane">
@@ -63,6 +71,7 @@ export function SessionView({
           events={effectiveEvents}
           selectedAgentId={activeAgentId}
           onSelect={onSelectAgent}
+          colors={colors}
         />
       </div>
 
@@ -76,11 +85,18 @@ export function SessionView({
         />
       )}
 
+      <AgentLegend agents={effectiveAgents} activeAgentId={activeAgentId} onSelect={onSelectAgent} colors={colors} />
+
       <div className="event-feed-pane">
         <div className="event-feed-header">
-          {effectiveAgents.find((a) => a.agentId === activeAgentId)?.title ??
-            effectiveAgents.find((a) => a.agentId === activeAgentId)?.description ??
-            activeAgentId}
+          {activeAgent ? (
+            <>
+              <span className="agent-color-dot" style={{ background: colors.get(activeAgent.agentId) }} />
+              {agentLabel(activeAgent)}
+            </>
+          ) : (
+            activeAgentId
+          )}
         </div>
         <EventFeed events={feedEvents} />
       </div>

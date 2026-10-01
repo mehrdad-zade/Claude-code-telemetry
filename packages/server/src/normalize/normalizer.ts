@@ -163,10 +163,14 @@ export class Normalizer {
           events.push({ ...base, kind: "tool_call", toolUseId, name, input: block.input });
 
           if (SPAWN_TOOL_NAMES.has(name)) {
-            events.push({ ...base, kind: "agent_spawn_pending", parentAgentId: ctx.agentId, toolUseId });
+            // Shares the same source block as the tool_call above — give it
+            // its own id (a shared id would collide as a React key / in the
+            // client's event-id dedup, silently dropping one of the two).
+            events.push({ ...base, id: `${base.id}:spawn_pending`, kind: "agent_spawn_pending", parentAgentId: ctx.agentId, toolUseId });
           } else if (MESSAGE_TOOL_NAMES.has(name) && block.input?.to) {
             events.push({
               ...base,
+              id: `${base.id}:message`,
               kind: "agent_message",
               fromAgentId: ctx.agentId,
               toAgentId: String(block.input.to),
@@ -219,6 +223,9 @@ export class Normalizer {
           const input = pending.input as { subagent_type?: string; description?: string } | undefined;
           events.push({
             ...eventBase,
+            // Shares the tool_result's source block — see the matching note
+            // in normalizeAssistant for why this needs its own id.
+            id: `${eventBase.id}:spawn_resolved`,
             kind: "agent_spawn",
             parentAgentId: pending.agentId,
             childAgentId,
@@ -239,6 +246,7 @@ export class Normalizer {
           const after = input.new_string ?? input.content ?? "";
           events.push({
             ...eventBase,
+            id: `${eventBase.id}:file_edit`,
             kind: "file_edit",
             toolUseId,
             path: input.file_path,

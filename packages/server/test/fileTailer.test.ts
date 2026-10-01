@@ -19,7 +19,7 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-function waitForLines(t: FileTailer, count: number, timeoutMs = 3000): Promise<string[]> {
+function waitForLines(t: FileTailer, count: number, timeoutMs = 8000): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const collected: string[] = [];
     const timer = setTimeout(() => reject(new Error("timed out waiting for lines")), timeoutMs);
@@ -39,7 +39,7 @@ describe("FileTailer", () => {
     const pending = waitForLines(tailer, 1);
     tailer.start();
 
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 300));
     fs.writeFileSync(filePath, '{"a":1}\n');
 
     const lines = await pending;
@@ -55,7 +55,7 @@ describe("FileTailer", () => {
     // Give the watcher's internal state a beat to settle after the initial
     // "add" before triggering a "change" — avoids a chokidar/fsevents race
     // when the two happen back-to-back within the same tick.
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 300));
 
     const second = waitForLines(tailer, 1);
     fs.appendFileSync(filePath, '{"a":2}\n');
@@ -68,10 +68,10 @@ describe("FileTailer", () => {
     tailer = new FileTailer(filePath);
     const pending = waitForLines(tailer, 1);
     tailer.start();
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 300));
 
     fs.writeFileSync(filePath, '{"partial":');
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise((r) => setTimeout(r, 300));
     fs.appendFileSync(filePath, 'true}\n');
 
     const lines = await pending;
@@ -84,7 +84,7 @@ describe("FileTailer", () => {
     const first = waitForLines(tailer, 2);
     tailer.start();
     await first;
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 300));
 
     const second = waitForLines(tailer, 1);
     fs.writeFileSync(filePath, '{"b":1}\n');

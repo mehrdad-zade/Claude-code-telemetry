@@ -236,9 +236,20 @@ body {
   padding: 0.6rem 0.8rem;
   border-radius: 10px;
   border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
   background: var(--panel-bg);
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.agent-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.3rem;
+  position: relative;
+  top: 1px;
 }
 
 .agent-node.selected {
@@ -423,6 +434,175 @@ body {
   font-size: 0.72rem;
   padding: 0;
   text-transform: none;
+}
+
+/* Agent legend */
+
+.agent-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+
+.agent-legend-label {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-right: 0.2rem;
+}
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.agent-chip.active {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  font-weight: 600;
+}
+
+/* Turn cards */
+
+.turn-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  overflow: hidden;
+  /* Without this, turn-cards are flex items in a column flex container
+     (.event-feed) that's shorter than their combined natural height — the
+     flexbox default is to shrink items to fit rather than let the
+     container scroll, and since this card clips overflow for its rounded
+     corners, a shrunk card silently collapses to near-nothing instead of
+     visibly overflowing. flex-shrink: 0 keeps every card at its natural
+     height so .event-feed's overflow-y: auto actually gets to scroll. */
+  flex-shrink: 0;
+}
+
+.turn-card.turn-live {
+  border-color: color-mix(in srgb, var(--status-thinking) 50%, var(--border));
+}
+
+.turn-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.turn-header:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.turn-chevron {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.turn-chevron.open {
+  transform: rotate(90deg);
+}
+
+.turn-index {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.turn-time {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.turn-live-badge {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--status-thinking);
+  border: 1px solid var(--status-thinking);
+  border-radius: 3px;
+  padding: 0 0.3rem;
+  flex-shrink: 0;
+}
+
+.turn-prompt {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.turn-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0 0.7rem 0.6rem calc(0.7rem + 1.1rem);
+  cursor: pointer;
+}
+
+.turn-pill {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.turn-pill-error {
+  background: color-mix(in srgb, var(--diff-remove-fg) 18%, transparent);
+  color: var(--diff-remove-fg);
+}
+
+.turn-preview {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.turn-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 0.7rem 0.7rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.6rem;
+}
+
+.turn-feed-controls {
+  display: flex;
+  gap: 0.8rem;
+  padding: 0 0.1rem 0.2rem;
+  flex-shrink: 0;
 }
 
 /* Replay controls */

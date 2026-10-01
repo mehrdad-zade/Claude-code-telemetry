@@ -130,6 +130,71 @@ describe("Normalizer", () => {
     expect(() => normalizer.normalizeLine("not an object", ctx())).not.toThrow();
   });
 
+  it("gives every event a unique id even when two share the same source block", () => {
+    // Regression test: an Agent tool_use produces both a tool_call and an
+    // agent_spawn_pending event from the SAME content block, and its
+    // tool_result produces both a tool_result and an agent_spawn event from
+    // the same block — these must never share an id (it breaks React keys
+    // and client-side de-duplication).
+    const normalizer = new Normalizer();
+    const call = {
+      type: "assistant",
+      timestamp: "t",
+      message: {
+        content: [{ type: "tool_use", id: "toolu_agent", name: "Agent", input: { subagent_type: "Explore" } }],
+      },
+    };
+    const result = {
+      type: "user",
+      timestamp: "t",
+      message: {
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "toolu_agent",
+            content: [{ type: "text", text: "agentId: abc123def456\n" }],
+            is_error: false,
+          },
+        ],
+      },
+    };
+
+    const callEvents = normalizer.normalizeLine(call, ctx("main", 0));
+    const resultEvents = normalizer.normalizeLine(result, ctx("main", 1));
+    const allIds = [...callEvents, ...resultEvents].map((e) => e.id);
+
+    expect(callEvents.map((e) => e.kind)).toEqual(["tool_call", "agent_spawn_pending"]);
+    expect(resultEvents.map((e) => e.kind)).toEqual(["tool_result", "agent_spawn"]);
+    expect(new Set(allIds).size).toBe(allIds.length);
+  });
+
+  it("gives a file_edit event its own id, distinct from its tool_result", () => {
+    const normalizer = new Normalizer();
+    const call = {
+      type: "assistant",
+      timestamp: "t",
+      message: {
+        content: [
+          { type: "tool_use", id: "toolu_edit", name: "Edit", input: { file_path: "/tmp/a.txt", old_string: "a", new_string: "b" } },
+        ],
+      },
+    };
+    const result = {
+      type: "user",
+      timestamp: "t",
+      message: {
+        content: [{ type: "tool_result", tool_use_id: "toolu_edit", content: "ok", is_error: false }],
+      },
+    };
+
+    normalizer.normalizeLine(call, ctx("a", 0));
+    const events = normalizer.normalizeLine(result, ctx("a", 1));
+    const ids = events.map((e) => e.id);
+
+    expect(events.map((e) => e.kind)).toEqual(["tool_result", "file_edit"]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("tags system lines with their subtype for lightweight status handling", () => {
     const normalizer = new Normalizer();
     const [event] = normalizer.normalizeLine({ type: "system", subtype: "turn_duration", timestamp: "t" }, ctx());

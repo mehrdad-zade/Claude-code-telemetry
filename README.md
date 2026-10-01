@@ -21,10 +21,15 @@ npm install
 npm run dev
 ```
 
-This starts the backend on `http://127.0.0.1:4317` and the frontend dev server on
-`http://localhost:5173` (proxying `/api` and `/ws` to the backend). Open the frontend URL and any
-Claude Code session you have running elsewhere on the same Mac should show up in the "Live" tab
-within a few seconds.
+This starts two things: the backend on `http://127.0.0.1:4317` (API + WebSocket only — no page to
+show) and the frontend dev server on **http://localhost:5173** (proxying `/api` and `/ws` to the
+backend).
+
+**Open http://localhost:5173 in your browser — not 4317.** Port 4317 has no HTML to serve until
+you run `npm run build`, so opening it directly in dev mode shows Express's "Cannot GET /".
+
+Once you're on the right port, any Claude Code session you have running elsewhere on the same Mac
+should show up in the "Live" tab within a few seconds.
 
 For a single-process production-style run:
 
