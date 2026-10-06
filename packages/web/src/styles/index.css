@@ -225,6 +225,58 @@ body {
   flex: 1;
 }
 
+.repo-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.4rem 0.9rem;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel-bg));
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.repo-group-header:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel-bg));
+}
+
+.repo-group-caret {
+  width: 0.7rem;
+}
+
+.repo-group-name {
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-group-tokens {
+  margin-left: auto;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.repo-group-count {
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-dim) 15%, transparent);
+  font-size: 0.68rem;
+}
+
 .session-item {
   display: flex;
   flex-direction: column;

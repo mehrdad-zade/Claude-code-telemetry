@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { SessionStats } from "@agent-tel/shared";
 import { api } from "../api/client.js";
 import { formatTokens } from "../lib/tokens.js";
@@ -8,6 +8,36 @@ const LIVE_REFRESH_MS = 15_000;
 // Last stats per session, so switching tabs or re-rendering the list doesn't
 // flash a placeholder.
 const cache = new Map<string, SessionStats>();
+// Bumped on every cache write so aggregate views (repo totals) re-render.
+let cacheVersion = 0;
+const listeners = new Set<() => void>();
+
+function setCached(sessionId: string, stats: SessionStats) {
+  cache.set(sessionId, stats);
+  cacheVersion++;
+  for (const l of listeners) l();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** Sum of total tokens over the given sessions, from whatever stats have
+ * loaded so far; `counted` says how many of them contributed. */
+export function useTokenTotal(sessionIds: string[]): { total: number; counted: number } {
+  useSyncExternalStore(subscribe, () => cacheVersion);
+  let total = 0;
+  let counted = 0;
+  for (const id of sessionIds) {
+    const s = cache.get(id);
+    if (s) {
+      total += s.totalTokens;
+      counted++;
+    }
+  }
+  return { total, counted };
+}
 
 function useSessionStats(sessionId: string, encodedCwd: string | undefined, live: boolean, version: number): SessionStats | undefined {
   const [stats, setStats] = useState(() => cache.get(sessionId));
@@ -18,7 +48,7 @@ function useSessionStats(sessionId: string, encodedCwd: string | undefined, live
       api
         .stats(sessionId, encodedCwd)
         .then((s) => {
-          cache.set(sessionId, s);
+          setCached(sessionId, s);
           if (!cancelled) setStats(s);
         })
         .catch(() => {
