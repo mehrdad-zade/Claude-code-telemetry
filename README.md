@@ -16,6 +16,16 @@ since transcripts can contain file contents/secrets from any of your projects.
 
 ## Run it
 
+Quickest way — one command that installs dependencies and builds if needed, starts the server,
+and opens the dashboard (in Safari if it's already running, otherwise Chrome):
+
+```bash
+./run.sh          # single process on http://127.0.0.1:4317
+./run.sh --dev    # hot-reloading dev servers, opens http://localhost:5173
+```
+
+Or manually:
+
 ```bash
 npm install
 npm run dev
@@ -49,6 +59,12 @@ npm start       # serves the API + built frontend on one port (4317)
 - `packages/web` — a React + React Flow dashboard: an agent graph (spawn/message edges animate
   as they happen) plus a raw live feed (thinking, tool calls + results, file diffs) for whichever
   agent is selected, with play/scrub replay controls for past sessions.
+
+The header shows tokens used today / this week / this month (calendar, local time; input +
+output + cache writes, summed from the on-disk transcripts) next to your plan's 5-hour session,
+weekly, and monthly extra-usage percentages. Those percentages come from the copy of `/status`
+data that Claude Code itself caches in `~/.claude.json` — agent-tel never fetches them — so they're
+as fresh as the last time Claude Code refreshed them (run `/status` to update).
 
 See `AGENT_TEL_PORT` env var to change the port (default `4317`). Set `AGENT_TEL_DEBUG=1` for
 verbose server logging.

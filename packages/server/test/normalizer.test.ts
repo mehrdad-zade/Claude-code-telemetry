@@ -28,6 +28,30 @@ describe("Normalizer", () => {
     expect(events[2]).toMatchObject({ kind: "tool_call", name: "Bash", toolUseId: "toolu_1" });
   });
 
+  it("tags every event with the API message id but attaches usage only to the first", () => {
+    const normalizer = new Normalizer();
+    const raw = {
+      type: "assistant",
+      timestamp: "2026-01-01T00:00:00.000Z",
+      message: {
+        id: "msg_1",
+        model: "claude-opus-5-5",
+        usage: { input_tokens: 5, output_tokens: 40, cache_creation_input_tokens: 100, cache_read_input_tokens: 9000 },
+        content: [
+          { type: "text", text: "a" },
+          { type: "tool_use", id: "toolu_9", name: "Bash", input: { command: "ls" } },
+        ],
+      },
+    };
+
+    const events = normalizer.normalizeLine(raw, ctx());
+    expect(events.map((e) => e.messageId)).toEqual(["msg_1", "msg_1"]);
+    expect(events[0].usage).toEqual({ input: 5, output: 40, cacheWrite: 100, cacheRead: 9000 });
+    expect(events[0].model).toBe("claude-opus-5-5");
+    expect(events[1].usage).toBeUndefined();
+    expect(events[1].model).toBeUndefined();
+  });
+
   it("still emits a thinking event when the thinking text is empty (redacted summary)", () => {
     // Some reasoning-effort/model configurations write a thinking block with
     // no readable summary, just an empty string + a verification signature.

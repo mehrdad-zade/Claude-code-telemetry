@@ -1,10 +1,11 @@
-import { useEffect } from "react";
-import type { LiveSession, ProjectHistoryEntry } from "@agent-tel/shared";
+import { useEffect, useState } from "react";
+import type { LiveSession, ProjectHistoryEntry, UsageSummary } from "@agent-tel/shared";
 import { api } from "./api/client.js";
 import { useWebSocket } from "./api/useWebSocket.js";
 import { useStore } from "./state/store.js";
 import { SessionList } from "./components/SessionList.js";
 import { SessionView } from "./components/SessionView.js";
+import { UsagePanel } from "./components/UsagePanel.js";
 
 export function App() {
   const roster = useStore((s) => s.roster);
@@ -17,18 +18,24 @@ export function App() {
   const selectSession = useStore((s) => s.selectSession);
   const selectAgent = useStore((s) => s.selectAgent);
   const loadReplay = useStore((s) => s.loadReplay);
-  const setReplayCursor = useStore((s) => s.setReplayCursor);
-  const setReplayPlaying = useStore((s) => s.setReplayPlaying);
 
   const { subscribe, unsubscribe } = useWebSocket();
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
 
   useEffect(() => {
     api.sessions().then(setRoster).catch(() => {});
     api.projects().then(setProjects).catch(() => {});
+    api.usage().then(setUsage).catch(() => {});
     const refresh = setInterval(() => {
       api.projects().then(setProjects).catch(() => {});
     }, 15000);
-    return () => clearInterval(refresh);
+    const refreshUsage = setInterval(() => {
+      api.usage().then(setUsage).catch(() => {});
+    }, 30000);
+    return () => {
+      clearInterval(refresh);
+      clearInterval(refreshUsage);
+    };
   }, [setRoster, setProjects]);
 
   function handleSelectLive(session: LiveSession) {
@@ -55,6 +62,7 @@ export function App() {
       <header className="app-header">
         <span className="app-title">agent-tel</span>
         <span className="app-subtitle">Claude Code, in real time</span>
+        <UsagePanel usage={usage} />
       </header>
       <div className="app-body">
         <SessionList
@@ -71,8 +79,6 @@ export function App() {
               session={activeSession}
               selectedAgentId={selectedAgentId}
               onSelectAgent={selectAgent}
-              onReplayCursorChange={(cursor) => setReplayCursor(selectedSessionId, cursor)}
-              onReplayPlayingChange={(playing) => setReplayPlaying(selectedSessionId, playing)}
             />
           ) : (
             <div className="empty-hint app-empty">Select a session to see what it's doing.</div>

@@ -4,6 +4,8 @@ import type { NormalizedEvent, ToolResultEvent } from "@agent-tel/shared";
 import type { Turn } from "../lib/turns.js";
 import { summarizeTurn } from "../lib/turns.js";
 import { renderEvent } from "./eventRendering.js";
+import { ReasoningBlock } from "./ReasoningBlock.js";
+import { groupReasoning } from "../lib/reasoning.js";
 
 export function TurnCard({
   turn,
@@ -28,6 +30,12 @@ export function TurnCard({
   const visibleEvents = useMemo(
     () => turn.events.filter((e: NormalizedEvent) => !(e.kind === "raw" && e.rawType.startsWith("system:"))),
     [turn.events]
+  );
+  // tool results render with their call and raw lines render nothing, so
+  // drop them here rather than leave empty wrappers adding blank gaps.
+  const items = useMemo(
+    () => groupReasoning(visibleEvents).filter((i) => i.kind === "reasoning" || (i.event.kind !== "tool_result" && i.event.kind !== "raw")),
+    [visibleEvents]
   );
   const otherCount = turn.events.length - visibleEvents.filter((e) => e.kind !== "tool_result").length;
 
@@ -74,11 +82,20 @@ export function TurnCard({
               {renderEvent(turn.prompt, results)}
             </div>
           )}
-          {visibleEvents.map((event) => (
-            <div key={event.id} className={event.id === highlightEventId ? "event-highlight" : undefined}>
-              {renderEvent(event, results)}
-            </div>
-          ))}
+          {items.map((item) =>
+            item.kind === "reasoning" ? (
+              <div
+                key={item.id}
+                className={item.events.some((e) => e.id === highlightEventId) ? "event-highlight" : undefined}
+              >
+                <ReasoningBlock step={item} />
+              </div>
+            ) : (
+              <div key={item.event.id} className={item.event.id === highlightEventId ? "event-highlight" : undefined}>
+                {renderEvent(item.event, results)}
+              </div>
+            )
+          )}
           {otherCount > 0 && <div className="other-events-hint">{otherCount} other background event(s) hidden</div>}
         </div>
       )}

@@ -32,14 +32,10 @@ export interface SessionData {
   agents: Record<string, AgentNode>;
   /** Chronological (by seq/timestamp as received). */
   events: NormalizedEvent[];
-  /** Only meaningful in replay mode: index into `events` up to which the UI
-   * should render, driven by ReplayControls. */
-  replayCursor: number;
-  replayPlaying: boolean;
 }
 
 function emptySession(mode: SessionData["mode"]): SessionData {
-  return { mode, ended: false, agents: {}, events: [], replayCursor: 0, replayPlaying: false };
+  return { mode, ended: false, agents: {}, events: [] };
 }
 
 interface StoreState {
@@ -55,8 +51,6 @@ interface StoreState {
   loadReplay: (sessionId: string, agents: AgentNode[], events: NormalizedEvent[]) => void;
   selectSession: (sessionId: string | null) => void;
   selectAgent: (agentId: string | null) => void;
-  setReplayCursor: (sessionId: string, cursor: number) => void;
-  setReplayPlaying: (sessionId: string, playing: boolean) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -83,26 +77,10 @@ export const useStore = create<StoreState>((set, get) => ({
           ended: true,
           agents: agentMap,
           events,
-          replayCursor: events.length,
-          replayPlaying: false,
         },
       },
     }));
   },
-
-  setReplayCursor: (sessionId, cursor) =>
-    set((state) => {
-      const session = state.sessions[sessionId];
-      if (!session) return state;
-      return { sessions: { ...state.sessions, [sessionId]: { ...session, replayCursor: cursor } } };
-    }),
-
-  setReplayPlaying: (sessionId, playing) =>
-    set((state) => {
-      const session = state.sessions[sessionId];
-      if (!session) return state;
-      return { sessions: { ...state.sessions, [sessionId]: { ...session, replayPlaying: playing } } };
-    }),
 
   applyServerMessage: (msg) => {
     switch (msg.type) {
@@ -127,8 +105,6 @@ export const useStore = create<StoreState>((set, get) => ({
                 ended: existing?.ended ?? false,
                 agents: agentMap,
                 events,
-                replayCursor: events.length,
-                replayPlaying: false,
               },
             },
           };
@@ -170,7 +146,7 @@ export const useStore = create<StoreState>((set, get) => ({
           return {
             sessions: {
               ...state.sessions,
-              [event.sessionId]: { ...session, events, replayCursor: events.length },
+              [event.sessionId]: { ...session, events },
             },
           };
         });

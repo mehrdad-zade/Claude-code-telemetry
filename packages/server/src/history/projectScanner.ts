@@ -3,6 +3,7 @@ import path from "node:path";
 import readline from "node:readline";
 import type { ProjectHistoryEntry } from "@agent-tel/shared";
 import { config } from "../config.js";
+import { discoverSubagentFiles } from "../transcripts/discoverSubagentFiles.js";
 
 interface SessionFileMeta {
   cwd: string | null;
@@ -87,6 +88,9 @@ export async function listProjectHistory(liveSessionIds: Set<string>): Promise<P
         lastPrompt: meta.lastPrompt ?? undefined,
         mtimeMs: fileStat.mtimeMs,
         isLive: liveSessionIds.has(sessionId),
+        // Each sub-agent gets its own subagents/agent-<id>.jsonl under
+        // <sessionId>/, so the file count is the sub-agent count.
+        agentCount: 1 + discoverSubagentFiles(path.join(dirPath, sessionId)).length,
       });
     }
   }

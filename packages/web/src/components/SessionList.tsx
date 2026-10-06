@@ -7,6 +7,16 @@ function basename(p: string): string {
   return p.split("/").filter(Boolean).pop() ?? p;
 }
 
+/** "🧩 3 agents" badge, shown only when sub-agents were involved. */
+function AgentCountBadge({ count }: { count?: number }) {
+  if (!count || count < 2) return null;
+  return (
+    <span className="agent-count-badge" title={`Main agent + ${count - 1} sub-agent${count > 2 ? "s" : ""}`}>
+      🧩 {count} agents
+    </span>
+  );
+}
+
 export function SessionList({
   roster,
   projects,
@@ -23,6 +33,10 @@ export function SessionList({
   const [tab, setTab] = useState<"live" | "history">("live");
   const [collapsed, setCollapsed] = useState(false);
   const liveIds = new Set(roster.map((s) => s.sessionId));
+  // Live sessions are also in the history scan, which is where agent counts
+  // come from (it refreshes every 15s, so a newly spawned sub-agent shows up
+  // shortly after).
+  const agentCounts = new Map(projects.map((p) => [p.sessionId, p.agentCount]));
 
   if (collapsed) {
     return (
@@ -57,7 +71,10 @@ export function SessionList({
               className={`session-item${session.sessionId === selectedSessionId ? " selected" : ""}`}
               onClick={() => onSelectLive(session)}
             >
-              <div className="session-item-title">{session.name || basename(session.cwd)}</div>
+              <div className="session-item-title">
+                {session.name || basename(session.cwd)}
+                <AgentCountBadge count={agentCounts.get(session.sessionId)} />
+              </div>
               <div className="session-item-cwd">{session.cwd}</div>
               <StatusBadge status={session.status === "busy" ? "thinking" : "idle"} />
             </button>
@@ -77,6 +94,7 @@ export function SessionList({
               <div className="session-item-title">
                 {entry.title ?? basename(entry.cwd)}
                 {liveIds.has(entry.sessionId) && <span className="live-tag">live</span>}
+                <AgentCountBadge count={entry.agentCount} />
               </div>
               <div className="session-item-cwd">{entry.cwd}</div>
               <div className="session-item-meta">

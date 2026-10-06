@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createPatch } from "diff";
-import type { DiffHunk, NormalizedEvent } from "@agent-tel/shared";
+import type { DiffHunk, NormalizedEvent, TokenUsage } from "@agent-tel/shared";
 import { logger } from "../logger.js";
 
 export interface NormalizeContext {
@@ -31,8 +31,11 @@ const RawLineSchema = z
     origin: z.object({ kind: z.string().optional() }).passthrough().optional(),
     message: z
       .object({
+        id: z.string().optional(),
+        model: z.string().optional(),
         role: z.string().optional(),
         content: z.unknown().optional(),
+        usage: z.unknown().optional(),
       })
       .passthrough()
       .optional(),
@@ -59,6 +62,22 @@ function extractText(content: unknown): string {
 function extractSpawnedAgentId(resultText: string): string | null {
   const match = resultText.match(/agentId:\s*([a-f0-9]{6,})/i);
   return match ? match[1] : null;
+}
+
+function num(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/** Maps the raw API `usage` object to our TokenUsage, or undefined if absent. */
+export function toTokenUsage(raw: unknown): TokenUsage | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const u = raw as Record<string, unknown>;
+  return {
+    input: num(u.input_tokens),
+    output: num(u.output_tokens),
+    cacheWrite: num(u.cache_creation_input_tokens),
+    cacheRead: num(u.cache_read_input_tokens),
+  };
 }
 
 function buildDiffHunks(filePath: string, before: string, after: string): DiffHunk[] {
@@ -190,7 +209,18 @@ export class Normalizer {
           events.push({ ...base, kind: "raw", rawType: `content:${block.type}`, raw: block });
       }
     });
-    return events;
+
+    // messageId on every event (so the UI can tell which API message a block
+    // belongs to); usage + model only on the first, so per-event sums never
+    // multi-count one line.
+    const messageId = line.message?.id;
+    const usage = toTokenUsage(line.message?.usage);
+    const model = line.message?.model;
+    return events.map((event, i) => ({
+      ...event,
+      ...(messageId ? { messageId } : {}),
+      ...(i === 0 && usage ? { usage, ...(model ? { model } : {}) } : {}),
+    }));
   }
 
   private normalizeUser(

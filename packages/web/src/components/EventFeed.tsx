@@ -10,9 +10,9 @@ import { TurnCard } from "./TurnCard.js";
  * the part that's "happening now" — while earlier turns compress to a
  * one-line summary you can expand on demand.
  *
- * `focusEventId` lets an external click (from the JourneyFlow timeline)
+ * `focusEventId` lets an external click (from a Visualization box)
  * force the turn containing that event open and scroll it into view, with a
- * brief highlight on the specific event — this is what makes a journey step
+ * brief highlight on the specific event — this is what makes a Visualization box
  * click actually show you more detail instead of just being decorative. */
 export function EventFeed({
   events,
@@ -33,7 +33,7 @@ export function EventFeed({
   const turnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   // "Sticky bottom" auto-follow, same pattern as any live chat/log view:
   // only snap to the newest event if the user was already down there. Without
-  // this, in a live session (new events keep arriving) clicking a journey
+  // this, in a live session (new events keep arriving) clicking a Visualization box
   // step to look at an earlier moment gets immediately yanked back to the
   // bottom by the very next incoming event.
   const isNearBottomRef = useRef(true);
@@ -48,38 +48,42 @@ export function EventFeed({
     if (isNearBottomRef.current) bottomRef.current?.scrollIntoView({ block: "nearest" });
   }, [events.length]);
 
+  // Runs once per focus request (nonce). Also re-checks when `turns` change,
+  // because opening a step that belongs to a different agent switches the
+  // feed's events first — the target turn only exists after that re-render.
+  const handledNonceRef = useRef<number | undefined>(undefined);
+  const scrollTargetRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!focusEventId) return;
+    if (!focusEventId || handledNonceRef.current === focusNonce) return;
     const turn = turns.find((t) => t.prompt?.id === focusEventId || t.events.some((e) => e.id === focusEventId));
     if (!turn) return;
+    handledNonceRef.current = focusNonce;
 
     isNearBottomRef.current = false; // we're about to jump elsewhere on purpose
     setOverrides((prev) => ({ ...prev, [turn.key]: true }));
     setHighlightId(focusEventId);
 
-    // Wait for the expand to actually commit before scrolling to it. A turn
-    // can have hundreds of blocks (a long tool-heavy turn), so this scrolls
-    // to the specific highlighted event inside it, not just the turn card's
-    // top — otherwise you land somewhere arbitrary inside a huge card.
-    // Double-RAF: expanding hundreds of blocks can take longer than one
-    // frame to paint, so a single RAF can fire before the highlighted
-    // element actually exists in the DOM.
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        const container = turnRefs.current.get(turn.key);
-        const target = container?.querySelector<HTMLElement>(".event-highlight") ?? container;
-        target?.scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-    });
+    scrollTargetRef.current = turn.key;
+  }, [focusEventId, focusNonce, turns]);
+
+  // Scrolls once the expand + highlight above have committed, so the
+  // highlighted block is guaranteed to be in the DOM. Scrolls to that
+  // specific block inside the turn (a long turn can have hundreds), falling
+  // back to the turn card itself.
+  useEffect(() => {
+    const turnKey = scrollTargetRef.current;
+    if (!turnKey || highlightId !== focusEventId) return;
+    scrollTargetRef.current = null;
+    const container = turnRefs.current.get(turnKey);
+    const target = container?.querySelector<HTMLElement>(".event-highlight") ?? container;
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightId, focusEventId, focusNonce, overrides]);
+
+  useEffect(() => {
+    if (!highlightId) return;
     const timer = setTimeout(() => setHighlightId(null), 2000);
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusEventId, focusNonce]);
+    return () => clearTimeout(timer);
+  }, [highlightId, focusNonce]);
 
   function toggle(key: string, defaultExpanded: boolean) {
     setOverrides((prev) => ({ ...prev, [key]: !(prev[key] ?? defaultExpanded) }));

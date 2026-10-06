@@ -1,18 +1,50 @@
-import type { NormalizedEvent } from "@agent-tel/shared";
+import {
+  ZERO_USAGE,
+  addUsage,
+  totalTokens,
+  type AgentNode,
+  type NormalizedEvent,
+  type TokenUsage,
+  type ToolResultEvent,
+} from "@agent-tel/shared";
 import { splitIntoTurns, summarizeTurn, type TurnSummary } from "./turns.js";
-import { buildJourney, type JourneyStep } from "./journey.js";
+import { buildActivityBreakdown, type ActivityCategory } from "./activity.js";
+import { agentLabel } from "./agentColor.js";
 
-export interface HandoffRef {
-  id: string;
-  targetAgentId: string;
-  label: string;
+export interface ModelUsage {
+  model: string;
+  usage: TokenUsage;
 }
 
-/** One instruction/response cycle, with everything both the Visualization
- * section (grouped Instruction → Activity → Response boxes) and the Journey
- * section (granular step chips) need to render their own row for it — the
- * two sections show the same turns at different levels of detail, so they
- * share this one data source. */
+/** A token total plus its per-model split (largest first). */
+export interface TokenBreakdown {
+  total: TokenUsage;
+  byModel: ModelUsage[];
+}
+
+export interface TurnTokens {
+  /** Rough size of the prompt text itself (~chars/4). Its real cost is
+   * billed inside the first API call's input, which Activity/Response
+   * already include — so this is informational, not part of `total`. */
+  instructionApprox: number;
+  activity: TokenBreakdown;
+  response: TokenBreakdown;
+  total: TokenBreakdown;
+}
+
+/** Everything one agent did within one turn — one Activity box. */
+export interface AgentActivity {
+  agentId: string;
+  label: string;
+  isMain: boolean;
+  firstEventId?: string;
+  categories: ActivityCategory[];
+  tokens: TokenBreakdown;
+}
+
+/** One instruction/response cycle, with everything the Visualization
+ * section needs to render its Instruction → Activity (one box per agent) →
+ * Response row. */
 export interface TurnRow {
   key: string;
   index: number;
@@ -22,31 +54,113 @@ export interface TurnRow {
   firstEventId?: string;
   lastAssistantEventId?: string;
   summary: TurnSummary;
-  steps: JourneyStep[];
-  spawns: HandoffRef[];
-  messages: HandoffRef[];
+  /** Main agent first, then sub-agents in the order they started. */
+  agents: AgentActivity[];
+  tokens: TurnTokens;
 }
 
-export function buildTurnRows(events: NormalizedEvent[]): TurnRow[] {
-  const turns = splitIntoTurns(events);
-  const journey = buildJourney(events);
+class BreakdownBuilder {
+  private total = ZERO_USAGE;
+  private models = new Map<string, TokenUsage>();
 
-  const stepsByTurn = new Map<number, JourneyStep[]>();
-  for (const step of journey.steps) {
-    const list = stepsByTurn.get(step.turnIndex);
-    if (list) list.push(step);
-    else stepsByTurn.set(step.turnIndex, [step]);
+  add(model: string, usage: TokenUsage): this {
+    this.total = addUsage(this.total, usage);
+    this.models.set(model, addUsage(this.models.get(model) ?? ZERO_USAGE, usage));
+    return this;
   }
+
+  build(): TokenBreakdown {
+    const byModel = [...this.models.entries()]
+      .map(([model, usage]) => ({ model, usage }))
+      .filter((m) => totalTokens(m.usage) > 0)
+      .sort((a, b) => totalTokens(b.usage) - totalTokens(a.usage));
+    return { total: this.total, byModel };
+  }
+}
+
+/** Splits a turn's API-message usage between the Response box (the message
+ * that produced the final assistant text) and the Activity box (every
+ * other message), each broken down by model. Usage is deduped by
+ * messageId, since one message spans several transcript lines. */
+function turnTokens(events: NormalizedEvent[], promptText: string | undefined, responseMessageId: string | undefined): TurnTokens {
+  const byMessage = new Map<string, { usage: TokenUsage; model: string }>();
+  events.forEach((e, i) => {
+    if (e.usage) byMessage.set(e.messageId ?? `${e.id}:${i}`, { usage: e.usage, model: e.model ?? "unknown model" });
+  });
+
+  const activity = new BreakdownBuilder();
+  const response = new BreakdownBuilder();
+  const total = new BreakdownBuilder();
+  for (const [messageId, { usage, model }] of byMessage) {
+    (messageId === responseMessageId ? response : activity).add(model, usage);
+    total.add(model, usage);
+  }
+
+  return {
+    instructionApprox: promptText ? Math.ceil(promptText.length / 4) : 0,
+    activity: activity.build(),
+    response: response.build(),
+    total: total.build(),
+  };
+}
+
+function mergeBreakdowns(parts: TokenBreakdown[]): TokenBreakdown {
+  const b = new BreakdownBuilder();
+  for (const part of parts) for (const m of part.byModel) b.add(m.model, m.usage);
+  return b.build();
+}
+
+/** Builds one row per main-agent turn. Sub-agent events (any agent other
+ * than `mainAgentId`) are attributed to the main turn whose time window
+ * contains them — that covers agents spawned in the turn, agents resumed
+ * later via SendMessage, and nested sub-agents alike. */
+export function buildTurnRows(events: NormalizedEvent[], mainAgentId: string, agents: AgentNode[]): TurnRow[] {
+  const results = new Map<string, ToolResultEvent>();
+  for (const e of events) if (e.kind === "tool_result") results.set(e.toolUseId, e);
+
+  const turns = splitIntoTurns(events.filter((e) => e.agentId === mainAgentId));
+  const starts = turns.map((t) => t.timestamp);
+
+  // turn index -> agentId -> that agent's events within the turn
+  const subByTurn = turns.map(() => new Map<string, NormalizedEvent[]>());
+  for (const e of events) {
+    if (e.agentId === mainAgentId || turns.length === 0) continue;
+    let idx = 0;
+    while (idx + 1 < starts.length && starts[idx + 1] && e.timestamp >= starts[idx + 1]) idx++;
+    const bucket = subByTurn[idx];
+    if (!bucket.has(e.agentId)) bucket.set(e.agentId, []);
+    bucket.get(e.agentId)!.push(e);
+  }
+
+  const agentById = new Map(agents.map((a) => [a.agentId, a]));
+  const nameFor = (agentId: string) => {
+    const agent = agentById.get(agentId);
+    return agent ? agentLabel(agent) : `sub-agent ${agentId.slice(0, 8)}`;
+  };
 
   return turns.map((turn, index) => {
     const lastAssistantEvent = [...turn.events].reverse().find((e) => e.kind === "text" && !e.isHumanPrompt);
-    const spawns: HandoffRef[] = turn.events
-      .filter((e): e is Extract<NormalizedEvent, { kind: "agent_spawn" }> => e.kind === "agent_spawn")
-      .map((e) => ({ id: e.id, targetAgentId: e.childAgentId, label: e.subagentType ?? "sub-agent" }));
-    const messages: HandoffRef[] = turn.events
-      .filter((e): e is Extract<NormalizedEvent, { kind: "agent_message" }> => e.kind === "agent_message")
-      .map((e) => ({ id: e.id, targetAgentId: e.toAgentId, label: e.preview }));
+    const mainTokens = turnTokens(turn.events, turn.prompt?.text, lastAssistantEvent?.messageId);
 
+    const subAgents: AgentActivity[] = [...subByTurn[index].entries()].map(([agentId, agentEvents]) => ({
+      agentId,
+      label: nameFor(agentId),
+      isMain: false,
+      firstEventId: agentEvents[0]?.id,
+      categories: buildActivityBreakdown(agentEvents, results),
+      tokens: turnTokens(agentEvents, undefined, undefined).total,
+    }));
+
+    const main: AgentActivity = {
+      agentId: mainAgentId,
+      label: "Main agent",
+      isMain: true,
+      firstEventId: turn.prompt?.id ?? turn.events[0]?.id,
+      categories: buildActivityBreakdown(turn.events, results),
+      tokens: mainTokens.activity,
+    };
+
+    const activity = mergeBreakdowns([mainTokens.activity, ...subAgents.map((a) => a.tokens)]);
     return {
       key: turn.key,
       index,
@@ -56,9 +170,13 @@ export function buildTurnRows(events: NormalizedEvent[]): TurnRow[] {
       firstEventId: turn.prompt?.id ?? turn.events[0]?.id,
       lastAssistantEventId: lastAssistantEvent?.id,
       summary: summarizeTurn(turn.events),
-      steps: stepsByTurn.get(index) ?? [],
-      spawns,
-      messages,
+      agents: [main, ...subAgents],
+      tokens: {
+        instructionApprox: mainTokens.instructionApprox,
+        activity,
+        response: mainTokens.response,
+        total: mergeBreakdowns([activity, mainTokens.response]),
+      },
     };
   });
 }

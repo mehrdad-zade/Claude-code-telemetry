@@ -7,6 +7,8 @@ export const config = {
   claudeDir: CLAUDE_DIR,
   sessionsDir: path.join(CLAUDE_DIR, "sessions"),
   projectsDir: path.join(CLAUDE_DIR, "projects"),
+  /** Claude Code's global state file — holds its cached `/status` plan usage. */
+  claudeJsonPath: path.join(os.homedir(), ".claude.json"),
 
   /** Bind to loopback ONLY — transcripts can contain file contents/secrets
    * from any of the user's projects. This must never be reachable off-box. */
@@ -26,10 +28,13 @@ export const config = {
 } as const;
 
 /** Mirrors Claude Code's own directory-name encoding for a project path:
- * every "/" and "." becomes "-". Verified against real ~/.claude/projects
- * entries on this machine (e.g. "/Users/zade/x.io" -> "-Users-zade-x-io"). */
+ * every character that isn't an ASCII letter or digit becomes "-" — not
+ * just "/" and ".", but spaces, underscores, etc. too. Verified against
+ * real ~/.claude/projects entries on this machine (e.g.
+ * "/Users/zade/x.io" -> "-Users-zade-x-io",
+ * "/Users/zade/Book Summarizer Agent" -> "-Users-zade-Book-Summarizer-Agent"). */
 export function encodeProjectDir(cwd: string): string {
-  return cwd.replace(/[/.]/g, "-");
+  return cwd.replace(/[^a-zA-Z0-9]/g, "-");
 }
 
 export function projectDirFor(cwd: string): string {

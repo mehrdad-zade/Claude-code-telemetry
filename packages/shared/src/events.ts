@@ -52,6 +52,8 @@ export interface ProjectHistoryEntry {
   mtimeMs: number;
   /** True if this session currently has a live pid tracked in the registry. */
   isLive: boolean;
+  /** Main agent + every sub-agent transcript found for this session. */
+  agentCount: number;
 }
 
 export interface DiffHunk {
@@ -80,6 +82,16 @@ interface BaseEvent {
   timestamp: string;
   /** Monotonic per-agent ordering (line index within that agent's own file). */
   seq: number;
+  /** API message id this event came from (assistant events only). One API
+   * message is split across several transcript lines, so consumers dedupe
+   * `usage` by this id. */
+  messageId?: string;
+  /** Token usage of that API message — set only on the FIRST event emitted
+   * from each assistant line, so summing per-event never multi-counts a line. */
+  usage?: TokenUsage;
+  /** Model that produced that API message (e.g. "claude-opus-5-5"); set
+   * alongside `usage`. */
+  model?: string;
 }
 
 export interface ThinkingEvent extends BaseEvent {
@@ -148,4 +160,55 @@ export interface AgentSpawnPendingEvent extends BaseEvent {
   kind: "agent_spawn_pending";
   parentAgentId: string;
   toolUseId: string;
+}
+
+export interface TokenUsage {
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
+export const ZERO_USAGE: TokenUsage = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
+
+/** The "tokens used" number shown everywhere in the UI: input + output +
+ * cache writes. Cache reads are deliberately excluded — they're cheap and
+ * typically 90%+ of raw volume, which would swamp everything else. */
+export function totalTokens(u: TokenUsage): number {
+  return u.input + u.output + u.cacheWrite;
+}
+
+export function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    cacheWrite: a.cacheWrite + b.cacheWrite,
+    cacheRead: a.cacheRead + b.cacheRead,
+  };
+}
+
+export interface PlanWindow {
+  /** 0-100 */
+  percent: number;
+  resetsAt?: string;
+  /** Short description of which plan window this is, e.g. "5h session". */
+  label: string;
+  /** Extra detail, e.g. "CA$0.00 / CA$30.00". */
+  detail?: string;
+}
+
+/** Plan-limit utilization as last seen by Claude Code's own `/status` (read
+ * from its local cache, never fetched by agent-tel). */
+export interface PlanLimits {
+  fetchedAtMs: number;
+  session?: PlanWindow;
+  weekly?: PlanWindow;
+  monthly?: PlanWindow;
+}
+
+export interface UsageSummary {
+  today: TokenUsage;
+  week: TokenUsage;
+  month: TokenUsage;
+  plan: PlanLimits | null;
 }

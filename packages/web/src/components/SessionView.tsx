@@ -1,92 +1,43 @@
 import { useMemo, useState } from "react";
-import type { AgentNode, NormalizedEvent } from "@agent-tel/shared";
 import type { SessionData } from "../state/store.js";
 import { agentLabel, assignAgentColors } from "../lib/agentColor.js";
 import { buildTurnRows } from "../lib/turnGroups.js";
-import type { JourneyStep } from "../lib/journey.js";
 import { EventFeed } from "./EventFeed.js";
-import { JourneyFlow } from "./JourneyFlow.js";
-import { ReplayControls } from "./ReplayControls.js";
 import { StatusBadge } from "./StatusBadge.js";
 import { VisualizationRows } from "./VisualizationRows.js";
-
-function visibleAgents(allAgents: AgentNode[], events: NormalizedEvent[]): AgentNode[] {
-  const appeared = new Set(allAgents.filter((a) => a.role === "main").map((a) => a.agentId));
-  for (const event of events) {
-    if (event.kind === "agent_spawn") appeared.add(event.childAgentId);
-  }
-  return allAgents.filter((a) => appeared.has(a.agentId));
-}
 
 export function SessionView({
   sessionId,
   session,
   selectedAgentId,
   onSelectAgent,
-  onReplayCursorChange,
-  onReplayPlayingChange,
 }: {
   sessionId: string;
   session: SessionData;
   selectedAgentId: string | null;
   onSelectAgent: (agentId: string) => void;
-  onReplayCursorChange: (cursor: number) => void;
-  onReplayPlayingChange: (playing: boolean) => void;
 }) {
-  const allAgents = useMemo(() => Object.values(session.agents), [session.agents]);
+  const agents = useMemo(() => Object.values(session.agents), [session.agents]);
+  const events = session.events;
 
-  const effectiveEvents = useMemo(
-    () => (session.mode === "replay" ? session.events.slice(0, session.replayCursor) : session.events),
-    [session.mode, session.events, session.replayCursor]
-  );
+  const activeAgentId = selectedAgentId && agents.some((a) => a.agentId === selectedAgentId) ? selectedAgentId : sessionId;
 
-  // In replay mode, derive which agents had appeared by the scrub cursor so
-  // scrubbing back in time hides not-yet-spawned sub-agents. In live mode,
-  // just show every agent the server currently knows about — the events
-  // array here is only a bounded recent-tail cache (both server ring buffer
-  // and client cap), so an old agent_spawn event dropping out of that window
-  // must never make an already-known, still-live agent disappear.
-  const effectiveAgents = useMemo(
-    () => (session.mode === "replay" ? visibleAgents(allAgents, effectiveEvents) : allAgents),
-    [session.mode, allAgents, effectiveEvents]
-  );
+  const feedEvents = useMemo(() => events.filter((e) => e.agentId === activeAgentId), [events, activeAgentId]);
 
-  const activeAgentId = selectedAgentId && effectiveAgents.some((a) => a.agentId === selectedAgentId)
-    ? selectedAgentId
-    : sessionId;
+  const colors = useMemo(() => assignAgentColors(agents), [agents]);
+  const activeAgent = agents.find((a) => a.agentId === activeAgentId);
+  const parentAgent = activeAgent?.parentAgentId ? agents.find((a) => a.agentId === activeAgent.parentAgentId) : undefined;
 
-  const feedEvents = useMemo(
-    () => effectiveEvents.filter((e) => e.agentId === activeAgentId),
-    [effectiveEvents, activeAgentId]
-  );
-
-  // Still computed (position-based, so two agents never collide) purely for
-  // the small color dot in the header — the legend/graph that used to show
-  // every agent at once is gone, so this is now just this agent's identity.
-  const colors = useMemo(() => assignAgentColors(effectiveAgents), [effectiveAgents]);
-  const activeAgent = effectiveAgents.find((a) => a.agentId === activeAgentId);
-  const parentAgent = activeAgent?.parentAgentId
-    ? effectiveAgents.find((a) => a.agentId === activeAgent.parentAgentId)
-    : undefined;
-
-  const turnRows = useMemo(() => buildTurnRows(feedEvents), [feedEvents]);
+  // Always built from the main agent (with every sub-agent's work folded
+  // into the turn it happened in), so the Visualization shows the whole
+  // session regardless of which agent's log is open below.
+  const turnRows = useMemo(() => buildTurnRows(events, sessionId, agents), [events, sessionId, agents]);
 
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
 
-  function focusEvent(eventId: string) {
+  function openEvent(agentId: string, eventId: string) {
+    if (agentId !== activeAgentId) onSelectAgent(agentId);
     setFocus((prev) => ({ id: eventId, nonce: (prev?.nonce ?? 0) + 1 }));
-  }
-
-  function jumpToAgent(agentId: string) {
-    if (effectiveAgents.some((a) => a.agentId === agentId)) onSelectAgent(agentId);
-  }
-
-  function handleStepClick(step: JourneyStep) {
-    if (step.targetAgentId) {
-      jumpToAgent(step.targetAgentId);
-      return;
-    }
-    focusEvent(step.id);
   }
 
   return (
@@ -104,29 +55,18 @@ export function SessionView({
             <StatusBadge status={activeAgent.status} />
           </>
         )}
+        {agents.length > 1 && <span className="agent-count">{agents.length} agents in this session</span>}
       </div>
 
       <div className="visualization-pane">
         <div className="section-label">Visualization</div>
-        <VisualizationRows rows={turnRows} onFocusEvent={focusEvent} onJumpToAgent={jumpToAgent} />
+        <VisualizationRows rows={turnRows} agentColors={colors} onOpenEvent={openEvent} />
       </div>
-
-      <div className="journey-pane">
-        <div className="section-label">Journey · click any step for detail</div>
-        <JourneyFlow rows={turnRows} onStepClick={handleStepClick} />
-      </div>
-
-      {session.mode === "replay" && (
-        <ReplayControls
-          total={session.events.length}
-          cursor={session.replayCursor}
-          playing={session.replayPlaying}
-          onCursorChange={onReplayCursorChange}
-          onPlayingChange={onReplayPlayingChange}
-        />
-      )}
 
       <div className="event-feed-pane">
+        <div className="section-label">
+          Log · {activeAgent ? agentLabel(activeAgent) : "main agent"}
+        </div>
         <EventFeed events={feedEvents} focusEventId={focus?.id} focusNonce={focus?.nonce} />
       </div>
     </div>
