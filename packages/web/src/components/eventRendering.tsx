@@ -3,6 +3,7 @@ import type { NormalizedEvent, ToolCallEvent, ToolResultEvent } from "@agent-tel
 import { ToolCallBlock } from "./ToolCallBlock.js";
 import { DiffView } from "./DiffView.js";
 import { Markdown } from "./Markdown.js";
+import { attachmentLabel, isAttachment } from "../lib/activity.js";
 
 /** Builds a toolUseId -> result lookup across a whole agent's event history,
  * so a tool_call can be paired with its result regardless of which turn
@@ -73,6 +74,13 @@ export function renderEvent(event: NormalizedEvent, results: Map<string, ToolRes
       );
     case "lifecycle":
       return <div className="event-block lifecycle-block">session {event.state}</div>;
+    case "raw":
+      return isAttachment(event) ? (
+        <div className="event-block attachment-block">
+          📎 context attachment · {attachmentLabel(event)}
+          <span className="event-time">{time}</span>
+        </div>
+      ) : null;
     default:
       return null;
   }

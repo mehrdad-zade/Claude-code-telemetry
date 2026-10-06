@@ -1,4 +1,4 @@
-import { PLAN_TOOL_NAME, planTitle, type NormalizedEvent, type ToolCallEvent, type ToolResultEvent } from "@agent-tel/shared";
+import { PLAN_TOOL_NAME, planTitle, type NormalizedEvent, type RawPassthroughEvent, type ToolCallEvent, type ToolResultEvent } from "@agent-tel/shared";
 import { reasoningSteps } from "./reasoning.js";
 
 export interface ActivityItem {
@@ -34,6 +34,19 @@ function basename(p: string): string {
 function oneLine(text: string, max = 80): string {
   const single = text.replace(/\s+/g, " ").trim();
   return single.length > max ? `${single.slice(0, max)}…` : single;
+}
+
+/** Context the harness attached to the conversation (environment, reminders,
+ * edited-file notices…). These are the only raw transcript lines the log
+ * shows; the rest (mode flags, titles, cost state…) are bookkeeping. */
+export function isAttachment(e: NormalizedEvent): e is RawPassthroughEvent {
+  return e.kind === "raw" && e.rawType === "attachment";
+}
+
+/** "total_tokens_reminder" → "total tokens reminder". */
+export function attachmentLabel(e: RawPassthroughEvent): string {
+  const type = (e.raw as { attachment?: { type?: unknown } } | null)?.attachment?.type;
+  return typeof type === "string" ? type.replace(/_/g, " ") : "attachment";
 }
 
 /** Short, human description of what a tool call did — the bit you'd want to
@@ -73,7 +86,7 @@ export function toolCallLabel(call: Pick<ToolCallEvent, "name" | "input">): stri
 
 /** Every kind of thing an agent did in a set of events, grouped into
  * categories, in a stable order: reasoning (thinking + narration), each tool (most-used
- * first), file edits, errors, hand-offs, then anything else. */
+ * first), file edits, errors, hand-offs, then context attachments. */
 export function buildActivityBreakdown(
   events: NormalizedEvent[],
   results: Map<string, ToolResultEvent>
@@ -87,7 +100,7 @@ export function buildActivityBreakdown(
   const errors: ActivityItem[] = [];
   const spawns: ActivityItem[] = [];
   const messages: ActivityItem[] = [];
-  const other = new Map<string, ActivityItem[]>();
+  const attachments: ActivityItem[] = [];
 
   for (const e of events) {
     switch (e.kind) {
@@ -118,10 +131,7 @@ export function buildActivityBreakdown(
         messages.push({ eventId: e.id, label: `→ ${e.toAgentId.slice(0, 8)}: ${oneLine(e.preview, 60)}` });
         break;
       case "raw":
-        if (!e.rawType.startsWith("system:")) {
-          if (!other.has(e.rawType)) other.set(e.rawType, []);
-          other.get(e.rawType)!.push({ eventId: e.id, label: e.rawType });
-        }
+        if (isAttachment(e)) attachments.push({ eventId: e.id, label: attachmentLabel(e) });
         break;
     }
   }
@@ -148,9 +158,7 @@ export function buildActivityBreakdown(
   add("errors", "⚠️", "Errors", errors, true);
   add("spawns", "🧩", "Sub-agents spawned", spawns);
   add("messages", "✉️", "Messages sent", messages);
-  for (const [rawType, items] of other) {
-    add(`raw:${rawType}`, rawType === "attachment" ? "📎" : "•", rawType === "attachment" ? "Context attachments" : rawType, items);
-  }
+  add("attachments", "📎", "Context attachments", attachments);
 
   return categories;
 }

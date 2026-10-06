@@ -80,6 +80,9 @@ export function SessionList({
   const [tab, setTab] = useState<"live" | "history">("live");
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedRepos, setCollapsedRepos] = useState<Set<string>>(() => new Set());
+  // History works as an accordion: every repo starts closed and opening one
+  // closes whichever was open before.
+  const [openHistoryRepo, setOpenHistoryRepo] = useState<string | null>(null);
   const liveIds = new Set(roster.map((s) => s.sessionId));
   // Live sessions are also in the history scan, which is where agent counts
   // come from (it refreshes every 15s, so a newly spawned sub-agent shows up
@@ -94,12 +97,25 @@ export function SessionList({
       return next;
     });
 
-  const renderGroups = <T extends { cwd: string; sessionId: string }>(items: T[], renderItem: (item: T) => ReactNode) =>
+  const liveRepoState = {
+    isCollapsed: (cwd: string) => collapsedRepos.has(cwd),
+    toggle: toggleRepo,
+  };
+  const historyRepoState = {
+    isCollapsed: (cwd: string) => openHistoryRepo !== cwd,
+    toggle: (cwd: string) => setOpenHistoryRepo((prev) => (prev === cwd ? null : cwd)),
+  };
+
+  const renderGroups = <T extends { cwd: string; sessionId: string }>(
+    items: T[],
+    repoState: { isCollapsed: (cwd: string) => boolean; toggle: (cwd: string) => void },
+    renderItem: (item: T) => ReactNode,
+  ) =>
     groupByRepo(items).map((group) => {
-      const isCollapsed = collapsedRepos.has(group.cwd);
+      const isCollapsed = repoState.isCollapsed(group.cwd);
       return (
         <div key={group.cwd} className="repo-group">
-          <button className="repo-group-header" onClick={() => toggleRepo(group.cwd)} title={group.cwd}>
+          <button className="repo-group-header" onClick={() => repoState.toggle(group.cwd)} title={group.cwd}>
             <span className="repo-group-caret">{isCollapsed ? "▸" : "▾"}</span>
             <span className="repo-group-name">{group.name}</span>
             <RepoTokenTotal sessionIds={group.items.map((i) => i.sessionId)} />
@@ -137,7 +153,7 @@ export function SessionList({
       {tab === "live" && (
         <div className="session-list-items">
           {roster.length === 0 && <div className="empty-hint">No Claude Code sessions running.</div>}
-          {renderGroups(roster, (session) => (
+          {renderGroups(roster, liveRepoState, (session) => (
             <button
               key={session.sessionId}
               className={`session-item${session.sessionId === selectedSessionId ? " selected" : ""}`}
@@ -158,7 +174,7 @@ export function SessionList({
       {tab === "history" && (
         <div className="session-list-items">
           {projects.length === 0 && <div className="empty-hint">No recorded sessions found yet.</div>}
-          {renderGroups(projects, (entry) => (
+          {renderGroups(projects, historyRepoState, (entry) => (
             <button
               key={entry.sessionId}
               className={`session-item${entry.sessionId === selectedSessionId ? " selected" : ""}`}

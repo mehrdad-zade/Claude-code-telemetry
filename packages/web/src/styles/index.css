@@ -1118,6 +1118,15 @@ body {
   color: var(--text-dim);
   font-style: italic;
 }
+.attachment-block {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
+}
 
 .other-events-hint {
   font-size: 0.72rem;

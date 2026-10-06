@@ -6,6 +6,7 @@ import { summarizeTurn } from "../lib/turns.js";
 import { renderEvent } from "./eventRendering.js";
 import { ReasoningBlock } from "./ReasoningBlock.js";
 import { groupReasoning } from "../lib/reasoning.js";
+import { isAttachment } from "../lib/activity.js";
 
 export function TurnCard({
   turn,
@@ -31,13 +32,17 @@ export function TurnCard({
     () => turn.events.filter((e: NormalizedEvent) => !(e.kind === "raw" && e.rawType.startsWith("system:"))),
     [turn.events]
   );
-  // tool results render with their call and raw lines render nothing, so
-  // drop them here rather than leave empty wrappers adding blank gaps.
+  // tool results render with their call and raw lines other than attachments
+  // render nothing, so drop them here rather than leave empty wrappers
+  // adding blank gaps.
   const items = useMemo(
-    () => groupReasoning(visibleEvents).filter((i) => i.kind === "reasoning" || (i.event.kind !== "tool_result" && i.event.kind !== "raw")),
+    () =>
+      groupReasoning(visibleEvents).filter(
+        (i) => i.kind === "reasoning" || (i.event.kind !== "tool_result" && (i.event.kind !== "raw" || isAttachment(i.event)))
+      ),
     [visibleEvents]
   );
-  const otherCount = turn.events.length - visibleEvents.filter((e) => e.kind !== "tool_result").length;
+  const otherCount = turn.events.filter((e) => e.kind === "raw" && !isAttachment(e)).length;
 
   return (
     <div className={`turn-card${live ? " turn-live" : ""}`} ref={cardRef}>
