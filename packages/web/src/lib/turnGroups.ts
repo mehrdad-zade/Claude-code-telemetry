@@ -2,10 +2,15 @@ import {
   ZERO_USAGE,
   addUsage,
   totalTokens,
+  validateTurns,
+  findPlans,
+  isPlanModePrompt,
   type AgentNode,
+  type PlanInfo,
   type NormalizedEvent,
   type TokenUsage,
   type ToolResultEvent,
+  type TurnValidation,
 } from "@agent-tel/shared";
 import { splitIntoTurns, summarizeTurn, type TurnSummary } from "./turns.js";
 import { buildActivityBreakdown, type ActivityCategory } from "./activity.js";
@@ -57,6 +62,12 @@ export interface TurnRow {
   /** Main agent first, then sub-agents in the order they started. */
   agents: AgentActivity[];
   tokens: TurnTokens;
+  /** Heuristic estimate of whether the instruction was fulfilled. */
+  validation: TurnValidation;
+  /** The prompt was sent in Claude Code's plan mode. */
+  planMode: boolean;
+  /** The plan presented in this turn — the approved one if there are several. */
+  plan?: PlanInfo;
 }
 
 class BreakdownBuilder {
@@ -138,6 +149,15 @@ export function buildTurnRows(events: NormalizedEvent[], mainAgentId: string, ag
     return agent ? agentLabel(agent) : `sub-agent ${agentId.slice(0, 8)}`;
   };
 
+  const byTime = (a: NormalizedEvent, b: NormalizedEvent) => (a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0);
+  const turnEvents = turns.map((turn, index) => [...turn.events, ...[...subByTurn[index].values()].flat()].sort(byTime));
+  // Same scoring as the server's sidebar stats (shared validateTurns).
+  const validations = validateTurns(turns.map((turn, index) => ({ prompt: turn.prompt, events: turnEvents[index] })));
+  const turnPlans = turnEvents.map((events) => {
+    const plans = findPlans(events);
+    return [...plans].reverse().find((p) => p.status === "approved") ?? plans[plans.length - 1];
+  });
+
   return turns.map((turn, index) => {
     const lastAssistantEvent = [...turn.events].reverse().find((e) => e.kind === "text" && !e.isHumanPrompt);
     const mainTokens = turnTokens(turn.events, turn.prompt?.text, lastAssistantEvent?.messageId);
@@ -161,6 +181,7 @@ export function buildTurnRows(events: NormalizedEvent[], mainAgentId: string, ag
     };
 
     const activity = mergeBreakdowns([mainTokens.activity, ...subAgents.map((a) => a.tokens)]);
+    const validation = validations[index];
     return {
       key: turn.key,
       index,
@@ -177,6 +198,9 @@ export function buildTurnRows(events: NormalizedEvent[], mainAgentId: string, ag
         response: mainTokens.response,
         total: mergeBreakdowns([activity, mainTokens.response]),
       },
+      validation,
+      planMode: isPlanModePrompt(turn.prompt),
+      plan: turnPlans[index],
     };
   });
 }

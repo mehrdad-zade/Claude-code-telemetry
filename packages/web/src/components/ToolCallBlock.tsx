@@ -1,63 +1,71 @@
-import type { ToolCallEvent, ToolResultEvent } from "@agent-tel/shared";
+import { PLAN_TOOL_NAME, findPlans, type ToolCallEvent, type ToolResultEvent } from "@agent-tel/shared";
 import { toolCallLabel } from "../lib/activity.js";
+import { Markdown } from "./Markdown.js";
+import { ToolInput, ToolResultBody, hasResultContent, resultSummary, splitMcpName } from "./toolRendering.js";
 
-function stringifyContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((b) => (b && typeof b === "object" && "text" in (b as any) ? String((b as any).text) : JSON.stringify(b)))
-      .join("\n");
-  }
-  return JSON.stringify(content, null, 2);
-}
+const PLAN_STATUS = {
+  approved: { label: "approved", className: "ok" },
+  rejected: { label: "rejected", className: "error" },
+  pending: { label: "awaiting approval", className: "pending" },
+} as const;
 
-/** The most useful view of a tool's input: the command for Bash, the path
- * (+ range) for file tools, the pattern for searches — pretty JSON only for
- * tools without a better presentation. Edit/Write diffs are already shown by
- * the file_edit block that follows, so their bodies are left out here. */
-function ToolInput({ call }: { call: ToolCallEvent }) {
-  const input = (call.input && typeof call.input === "object" ? call.input : {}) as Record<string, any>;
-
-  switch (call.name) {
-    case "Bash":
-      return (
-        <>
-          {input.description && <div className="tool-desc">{input.description}</div>}
-          <pre className="code-block code-shell">{String(input.command ?? "")}</pre>
-        </>
-      );
-    case "Read": {
-      const range = input.offset || input.limit ? ` (from line ${input.offset ?? 1}${input.limit ? `, ${input.limit} lines` : ""})` : "";
-      return <div className="tool-path"><code>{input.file_path}</code>{range}</div>;
-    }
-    case "Edit":
-    case "Write":
-    case "NotebookEdit":
-      return <div className="tool-path"><code>{input.file_path ?? input.notebook_path}</code></div>;
-    case "Grep":
-    case "Glob":
-      return (
+/** The plan the agent presented in plan mode, rendered as a document rather
+ * than a raw tool call: title, approval status, the full plan (the approved
+ * text when you edited it before approving) and any rejection feedback. */
+function PlanBlock({ call, result, time }: { call: ToolCallEvent; result?: ToolResultEvent; time?: string }) {
+  const plan = findPlans(result ? [call, result] : [call])[0];
+  const status = PLAN_STATUS[plan.status];
+  return (
+    <div className={`event-block plan-block plan-${plan.status}`}>
+      <div className="event-label">
+        <span>
+          📋 <span className="tool-name">Plan</span>
+          <span className="tool-label"> · {plan.title}</span>
+        </span>
+        <span className={`tool-status ${status.className}`}>{status.label}</span>
+        {time && <span className="event-time">{time}</span>}
+      </div>
+      {plan.filePath && (
         <div className="tool-path">
-          <code>{input.pattern}</code>
-          {input.path ? <> in <code>{input.path}</code></> : null}
-          {input.glob ? <> · files <code>{input.glob}</code></> : null}
+          <code>{plan.filePath}</code>
         </div>
-      );
-  }
-  return <pre className="code-block">{JSON.stringify(call.input, null, 2) ?? ""}</pre>;
+      )}
+      {plan.feedback && (
+        <div className="plan-feedback">
+          <strong>Your feedback:</strong> {plan.feedback}
+        </div>
+      )}
+      <details className="plan-body" open={plan.status !== "rejected"}>
+        <summary>plan details · {plan.text.split("\n").length} lines</summary>
+        {plan.text ? <Markdown text={plan.text} /> : <div className="viz-box-empty">(plan text not recorded)</div>}
+      </details>
+    </div>
+  );
 }
 
 export function ToolCallBlock({ call, result, time }: { call: ToolCallEvent; result?: ToolResultEvent; time?: string }) {
-  const resultText = result ? stringifyContent(result.content) : null;
+  if (call.name === PLAN_TOOL_NAME) return <PlanBlock call={call} result={result} time={time} />;
   const label = toolCallLabel(call);
-  const lineCount = resultText ? resultText.split("\n").length : 0;
+  const mcp = splitMcpName(call.name);
+  const showResult = result && hasResultContent(result.content);
+  // Screenshots are the point of a browser step — show them without a click.
+  const hasImage = Array.isArray(result?.content) && result!.content.some((b: any) => b?.type === "image");
 
   return (
     <div className={`event-block tool-call-block${result?.isError ? " tool-error" : ""}`}>
       <div className="event-label">
         <span>
-          🔧 <span className="tool-name">{call.name}</span>
-          {label && call.name !== "Bash" && <span className="tool-label"> · {label}</span>}
+          🔧{" "}
+          <span className="tool-name" title={call.name}>
+            {mcp ? (
+              <>
+                <span className="tool-server">{mcp.server.replace(/^claude[-_]in[-_]|^claude_ai_/i, "")}</span> {mcp.tool}
+              </>
+            ) : (
+              call.name
+            )}
+          </span>
+          {label && call.name !== "Bash" && !mcp && <span className="tool-label"> · {label}</span>}
         </span>
         {result ? (
           result.isError ? (
@@ -71,12 +79,12 @@ export function ToolCallBlock({ call, result, time }: { call: ToolCallEvent; res
         {time && <span className="event-time">{time}</span>}
       </div>
       <ToolInput call={call} />
-      {resultText !== null && resultText.length > 0 && (
-        <details className="tool-result" open={result?.isError}>
+      {showResult && (
+        <details className="tool-result" open={result!.isError || hasImage}>
           <summary>
-            {result?.isError ? "error" : "result"} · {lineCount} line{lineCount === 1 ? "" : "s"}
+            {result!.isError ? "error" : "result"} · {resultSummary(result!.content) || "empty"}
           </summary>
-          <pre className="code-block tool-result-body">{resultText}</pre>
+          <ToolResultBody content={result!.content} />
         </details>
       )}
     </div>

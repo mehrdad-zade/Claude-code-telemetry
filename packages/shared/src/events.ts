@@ -103,6 +103,9 @@ export interface TextEvent extends BaseEvent {
   kind: "text";
   text: string;
   isHumanPrompt: boolean;
+  /** Claude Code's permission mode when a human prompt was sent ("plan",
+   * "auto", "default", "acceptEdits", ...). Absent on older transcripts. */
+  permissionMode?: string;
 }
 
 export interface ToolCallEvent extends BaseEvent {

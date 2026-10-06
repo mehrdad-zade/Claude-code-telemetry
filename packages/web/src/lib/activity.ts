@@ -1,4 +1,4 @@
-import type { NormalizedEvent, ToolCallEvent, ToolResultEvent } from "@agent-tel/shared";
+import { PLAN_TOOL_NAME, planTitle, type NormalizedEvent, type ToolCallEvent, type ToolResultEvent } from "@agent-tel/shared";
 import { reasoningSteps } from "./reasoning.js";
 
 export interface ActivityItem {
@@ -64,6 +64,8 @@ export function toolCallLabel(call: Pick<ToolCallEvent, "name" | "input">): stri
       return oneLine(str("description") ?? str("subagent_type") ?? "");
     case "Skill":
       return oneLine(str("skill") ?? "");
+    case PLAN_TOOL_NAME:
+      return oneLine(planTitle(str("plan") ?? ""));
   }
   const firstString = Object.values(input).find((v): v is string => typeof v === "string" && v.length > 0);
   return firstString ? oneLine(firstString) : "";
@@ -131,7 +133,8 @@ export function buildActivityBreakdown(
 
   add("reasoning", "💭", "Reasoning", reasoning);
   for (const [name, items] of [...tools.entries()].sort((a, b) => b[1].length - a[1].length)) {
-    add(`tool:${name}`, "🔧", shortToolName(name), items);
+    if (name === PLAN_TOOL_NAME) add(`tool:${name}`, "📋", "Plan", items);
+    else add(`tool:${name}`, "🔧", shortToolName(name), items);
   }
   add(
     "edits",

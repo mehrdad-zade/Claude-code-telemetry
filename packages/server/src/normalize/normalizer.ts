@@ -29,6 +29,7 @@ const RawLineSchema = z
     uuid: z.string().optional(),
     timestamp: z.string().optional(),
     origin: z.object({ kind: z.string().optional() }).passthrough().optional(),
+    permissionMode: z.string().optional(),
     message: z
       .object({
         id: z.string().optional(),
@@ -234,7 +235,8 @@ export class Normalizer {
     if (typeof content === "string") {
       if (!content) return [];
       const isHumanPrompt = line.origin?.kind === "human";
-      return [{ ...base, kind: "text", text: content, isHumanPrompt }];
+      const permissionMode = isHumanPrompt ? line.permissionMode : undefined;
+      return [{ ...base, kind: "text", text: content, isHumanPrompt, ...(permissionMode ? { permissionMode } : {}) }];
     }
 
     if (!Array.isArray(content)) return [];

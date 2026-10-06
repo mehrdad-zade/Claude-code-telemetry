@@ -241,4 +241,12 @@ describe("Normalizer", () => {
     const [event] = normalizer.normalizeLine({ type: "system", subtype: "turn_duration", timestamp: "t" }, ctx());
     expect(event).toMatchObject({ kind: "raw", rawType: "system:turn_duration" });
   });
+  it("records the permission mode on human prompts", () => {
+    const normalizer = new Normalizer();
+    const [event] = normalizer.normalizeLine(
+      { type: "user", timestamp: "2026-01-01T00:00:00.000Z", permissionMode: "plan", origin: { kind: "human" }, message: { role: "user", content: "plan a refactor" } },
+      ctx(),
+    );
+    expect(event).toMatchObject({ kind: "text", isHumanPrompt: true, permissionMode: "plan" });
+  });
 });

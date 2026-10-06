@@ -1,4 +1,4 @@
-import type { AgentNode, LiveSession, NormalizedEvent, ProjectHistoryEntry, UsageSummary } from "@agent-tel/shared";
+import type { AgentNode, LiveSession, NormalizedEvent, ProjectHistoryEntry, SessionStats, UsageSummary } from "@agent-tel/shared";
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -11,6 +11,10 @@ export const api = {
   projects: () => getJson<ProjectHistoryEntry[]>("/api/projects"),
   usage: () => getJson<UsageSummary>("/api/usage"),
   tree: (sessionId: string) => getJson<AgentNode[]>(`/api/sessions/${sessionId}/tree`),
+  stats: (sessionId: string, encodedCwd?: string) => {
+    const qs = encodedCwd ? `?encodedCwd=${encodeURIComponent(encodedCwd)}` : "";
+    return getJson<SessionStats>(`/api/sessions/${sessionId}/stats${qs}`);
+  },
   history: (sessionId: string, encodedCwd?: string) => {
     const qs = encodedCwd ? `?encodedCwd=${encodeURIComponent(encodedCwd)}` : "";
     return getJson<{ agents: AgentNode[]; events: NormalizedEvent[] }>(

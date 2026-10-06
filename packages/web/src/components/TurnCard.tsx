@@ -48,6 +48,11 @@ export function TurnCard({
           {turn.timestamp ? dayjs(turn.timestamp).fromNow() : ""}
         </span>
         {live && <span className="turn-live-badge">live</span>}
+        {turn.prompt?.permissionMode === "plan" && (
+          <span className="plan-mode-tag" title="Sent in Claude Code's plan mode">
+            📋
+          </span>
+        )}
         <span className="turn-prompt">{turn.prompt ? `“${truncate(turn.prompt.text, 90)}”` : "(session start)"}</span>
       </button>
 

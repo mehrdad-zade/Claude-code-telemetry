@@ -38,7 +38,12 @@ export function renderEvent(event: NormalizedEvent, results: Map<string, ToolRes
       return (
         <div className={`event-block text-block${event.isHumanPrompt ? " human-prompt" : " assistant-text"}`}>
           <div className="event-label">
-            <span>{event.isHumanPrompt ? "👤 user" : "🤖 assistant"}</span>
+            <span>
+              {event.isHumanPrompt ? "👤 user" : "🤖 assistant"}
+              {event.isHumanPrompt && event.permissionMode === "plan" && (
+                <span className="plan-mode-tag" title="Sent in Claude Code's plan mode">📋 plan mode</span>
+              )}
+            </span>
             <span className="event-time">{time}</span>
           </div>
           <Markdown text={event.text} />

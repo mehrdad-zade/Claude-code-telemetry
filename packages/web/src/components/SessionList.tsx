@@ -2,6 +2,7 @@ import { useState } from "react";
 import dayjs from "dayjs";
 import type { LiveSession, ProjectHistoryEntry } from "@agent-tel/shared";
 import { StatusBadge } from "./StatusBadge.js";
+import { SessionStatsLine } from "./SessionStatsLine.js";
 
 function basename(p: string): string {
   return p.split("/").filter(Boolean).pop() ?? p;
@@ -70,12 +71,13 @@ export function SessionList({
               key={session.sessionId}
               className={`session-item${session.sessionId === selectedSessionId ? " selected" : ""}`}
               onClick={() => onSelectLive(session)}
+              title={session.cwd}
             >
               <div className="session-item-title">
                 {session.name || basename(session.cwd)}
                 <AgentCountBadge count={agentCounts.get(session.sessionId)} />
               </div>
-              <div className="session-item-cwd">{session.cwd}</div>
+              <SessionStatsLine sessionId={session.sessionId} live />
               <StatusBadge status={session.status === "busy" ? "thinking" : "idle"} />
             </button>
           ))}
@@ -90,15 +92,20 @@ export function SessionList({
               key={entry.sessionId}
               className={`session-item${entry.sessionId === selectedSessionId ? " selected" : ""}`}
               onClick={() => onSelectReplay(entry)}
+              title={entry.lastPrompt ? `${entry.cwd}\n\nLast prompt: ${entry.lastPrompt}` : entry.cwd}
             >
               <div className="session-item-title">
                 {entry.title ?? basename(entry.cwd)}
                 {liveIds.has(entry.sessionId) && <span className="live-tag">live</span>}
                 <AgentCountBadge count={entry.agentCount} />
               </div>
-              <div className="session-item-cwd">{entry.cwd}</div>
+              <SessionStatsLine
+                sessionId={entry.sessionId}
+                encodedCwd={entry.encodedCwd}
+                live={liveIds.has(entry.sessionId)}
+                version={entry.mtimeMs}
+              />
               <div className="session-item-meta">
-                {entry.lastPrompt && <span className="last-prompt">{entry.lastPrompt.slice(0, 60)}</span>}
                 <span className="timestamp">{dayjs(entry.mtimeMs).fromNow?.() ?? new Date(entry.mtimeMs).toLocaleString()}</span>
               </div>
             </button>
