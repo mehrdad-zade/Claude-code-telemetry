@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # One-command launcher for agent-tel: installs/builds whatever is missing or
-# stale, starts the server, and opens the dashboard in a browser — Safari if
-# it's already running, otherwise Chrome (falling back to the default browser).
+# stale, starts the server, and opens the dashboard in a browser — on macOS
+# Safari if it's already running, otherwise Chrome (falling back to the default
+# browser); elsewhere the default browser.
 #
 #   ./run.sh         production-style: build web, serve everything on one port
 #   ./run.sh --dev   hot-reloading dev servers (npm run dev)
@@ -61,16 +62,28 @@ fi
 
 # --- browser -----------------------------------------------------------------
 open_browser() {
-  if pgrep -xq Safari; then
-    log "Safari is running — opening $1 in Safari."
-    open -a Safari "$1"
-  elif open -Ra "Google Chrome" 2>/dev/null; then
-    log "Opening $1 in Chrome."
-    open -a "Google Chrome" "$1"
-  else
-    log "Chrome not found — opening $1 in the default browser."
-    open "$1"
-  fi
+  case "$(uname -s)" in
+    Darwin)
+      if pgrep -xq Safari; then
+        log "Safari is running — opening $1 in Safari."
+        open -a Safari "$1"
+      elif open -Ra "Google Chrome" 2>/dev/null; then
+        log "Opening $1 in Chrome."
+        open -a "Google Chrome" "$1"
+      else
+        log "Chrome not found — opening $1 in the default browser."
+        open "$1"
+      fi
+      ;;
+    MINGW* | MSYS* | CYGWIN*)
+      log "Opening $1 in the default browser."
+      cmd.exe //c start "" "$1"
+      ;;
+    *)
+      log "Opening $1 in the default browser."
+      xdg-open "$1" >/dev/null 2>&1 || log "Open $1 in your browser."
+      ;;
+  esac
 }
 
 # Polls until the app answers, then opens the browser. Runs in the background

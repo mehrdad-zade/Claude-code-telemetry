@@ -17,14 +17,27 @@ since transcripts can contain file contents/secrets from any of your projects.
 ## Run it
 
 Quickest way — one command that installs dependencies and builds if needed, starts the server,
-and opens the dashboard (in Safari if it's already running, otherwise Chrome):
+and opens the dashboard (on macOS in Safari if it's already running, otherwise Chrome; elsewhere
+the default browser):
 
 ```bash
 ./run.sh          # single process on http://127.0.0.1:4317
 ./run.sh --dev    # hot-reloading dev servers, opens http://localhost:5173
 ```
 
-Or manually:
+### Double-click launchers
+
+To start it without typing commands, copy a launcher anywhere (such as the Desktop) and double-click it.
+It runs `run.sh` in a terminal window; press Ctrl+C or close the window to stop.
+
+| OS | File | Setup |
+| --- | --- | --- |
+| macOS | `launchers/Agent Tel.command` | None. It points at this repo; if you move the repo, update `AGENT_TEL_DIR` at the top. |
+| Windows | `launchers/Agent Tel.bat` | Set `AGENT_TEL_DIR` at the top to the repo's path. Needs [Git for Windows](https://git-scm.com) (for Git Bash) and Node.js 20+. |
+
+Both launchers also work if you double-click them from inside the repo.
+
+### Manually
 
 ```bash
 npm install
